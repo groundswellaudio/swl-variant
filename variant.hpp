@@ -179,6 +179,8 @@ union variant_top_union{
 };
 
 // =================== algorithm to build the tree of unions 
+// take a sequence of types and perform an order preserving fold until only one type is left
+// the first parameter is the numbers of types remaining for the current pass
 
 constexpr unsigned char pick_next(unsigned remaining){
 	return remaining >= 2 ? 2 : remaining;
@@ -237,109 +239,25 @@ template <class... Ts>
 using make_tree_union = typename 
 	make_tree<pick_next(sizeof...(Ts)), 1, true>::template f<sizeof...(Ts), Ts...>;
 
-// ============ faster variadic common_type implementation 
-
-constexpr unsigned char next_common_type(unsigned x){
-	return x >= 16 ? 3 : x > 8 ? 2 : (x != 0);
-}
-
-template <unsigned char Go>
-struct common_type;
-
-template <>
-struct common_type<1> {
-	template <class A, class B, class... Ts>
-	using f = typename common_type<next_common_type(sizeof...(Ts))>::template f<std::common_type_t<A, B>, Ts...>;
-};
-
-template <>
-struct common_type<0>{
-	template <class A>
-	using f = A;
-};
-
-template <>
-struct common_type<2>{
-	
-	template <class T1, class T2, class T3, class T4, class T5, class T6, class T7, class T8, class... Ts>
-	using f = typename common_type<next_common_type(sizeof...(Ts))>
-::template f< 
-	
-	std::common_type_t<T1, 
-		std::common_type_t<T2, 
-			std::common_type_t<T3,
-				std::common_type_t<T4,
-					std::common_type_t<T5,
-						std::common_type_t<T6,
-							std::common_type_t<T7, T8>
-						>
-					>
-				>
-			>
-		>
-	>, Ts...>;			
-};
-
-template <>
-struct common_type<3>{
-	
-	template <class T1, class T2, class T3, class T4, class T5, class T6, class T7, class T8,
-			  class T9, class T10, class T11, class T12, class T13, class T14, class T15, class T16,
-			  class... Ts>
-	using f = typename common_type<next_common_type(sizeof...(Ts))>
-::template f< 
-	
-	#define ITER(X, ...) std::common_type_t<T##X, __VA_ARGS__>
-	
-	ITER(1, 
-		ITER(2, 
-			ITER(3, 
-				ITER(4, 
-					ITER(5, 
-						ITER(6, 
-							ITER(7, 
-								ITER(8, 
-									ITER(9, 
-										ITER(10, 
-											ITER(11, 
-												ITER(12, 
-													ITER(13,
-														ITER(14, 
-																std::common_type_t<T15, T16>
-															)
-														)
-													)
-												)
-											)
-										)
-									)
-								)
-							)
-						)
-					)
-				)
-			)
-		), Ts...>;
-	
-	#undef ITER	
-};
-
-template <class... Ts>
-using common_type_t = typename common_type<next_common_type(sizeof...(Ts) - 1)>::template f<Ts...>;
-
 // ============================================================
-
-template <class... Ts>
-struct variant;
-
-template <std::size_t Idx, class... Ts>
-auto& get (variant<Ts...>& v);
 
 template <std::size_t Num, class... Ts>
 using smallest_suitable_integer_type = 
 	type_pack_element<static_cast<unsigned char>(Num > (std::numeric_limits<Ts>::max() + ...)),
 					  Ts...
 					  >;
+					  
+template <class... Ts>
+struct variant;
+
+template <std::size_t Idx, class... Ts>
+constexpr auto& get (variant<Ts...>& v);
+
+template <std::size_t Idx, class... Ts>
+constexpr auto& get (const variant<Ts...>& v);
+
+template <std::size_t Idx, class... Ts>
+constexpr auto& get (variant<Ts...>&& v);
 
 // ========================= visit dispatcher
 
@@ -348,33 +266,6 @@ constexpr Rt visit__(Variant v, Fn fn){
 	return fn( get<Idx>(v) );
 }
 
-template <bool B>
-struct common_type_impl;
-
-template <>
-struct common_type_impl<true> {
-	template <class A, class... Ts>
-	using f = A;
-};
-
-template <>
-struct common_type_impl<false> {
-	template <class A, class... Ts>
-	using f = std::common_type_t<A, Ts...>;
-};
-
-template <bool B>
-struct all_same;
-
-template <>
-struct all_same<true>{
-	template <class A, class... Ts>
-	static constexpr bool v = (std::is_same_v<A, Ts> && ...);
-};
-
-template <class... Ts>
-using common_type__ = typename common_type_impl<all_same<(sizeof...(Ts) != 0)>::template v<Ts...>>::template f<Ts...>;
-
 template <class Seq, bool PassIndex>
 struct make_dispatcher;
 
@@ -382,11 +273,10 @@ template <std::size_t... Idx>
 struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
 	
 	template <class Variant, class Fn>
-	using ReturnType = //common_type__<decltype( declval<Fn>()( get<Idx>(declval<Variant>()) ) )...>;
+	using ReturnType = 
 		 std::common_type_t< decltype(
-			declval<Fn>()( get<Idx>(declval<Variant>()) )
-		)
-		...  
+			declval<Fn>()( ::swl::get<Idx>(declval<Variant>()) )
+		)...  
 	>; 
 	
 	template <class Variant, class Visitor>
@@ -394,9 +284,8 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
 	
 	template <class Variant, class Fn>
 	static constexpr fn_ptr<Variant, Fn> dispatcher[sizeof...(Idx)] = {
-		//&visit__<ReturnType<Variant, Fn>, Variant, Fn, Idx>...
 		[] (Variant var, Fn self) {
-				return self(get<Idx>(var));
+				return self( static_cast<Variant&&>(var).template get<Idx>() );
 		}...
 	};
 };
@@ -405,12 +294,12 @@ template <std::size_t... Idx>
 struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
 	
 	template <class Variant, class Fn>
-	using ReturnType = //common_type__<decltype( declval<Visitor>()( get<Idx>(declval<Variant>()) ) )...>;
+	using ReturnType =
 		 std::common_type_t< decltype(
-			declval<Fn>()( get<Idx>(declval<Variant>(), std::integral_constant<std::size_t, Idx>{}) )
+			declval<Fn>()( declval<Variant>().template get<Idx>(), std::integral_constant<std::size_t, Idx>{} ) 
 		)
 		... 
-	>;  
+	>;
 	
 	template <class Variant, class Visitor>
 	using fn_ptr = ReturnType<Variant, Visitor>(*)(Variant, Visitor visitor);
@@ -418,14 +307,76 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
 	template <class Variant, class Visitor>
 	static constexpr fn_ptr<Variant, Visitor> dispatcher[sizeof...(Idx)] = {
 		[] (Variant var, Visitor self) {
-				return self(get<Idx>(var), std::integral_constant<std::size_t, Idx>{});
+				return self( static_cast<Variant&&>(var).template get<Idx>(), 
+							 std::integral_constant<std::size_t, Idx>{});
 		}...
+	};
+};
+
+template <class T>
+struct array_wrapper { 
+	T data;
+};
+
+template <std::size_t N>
+constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[] ){
+	array_wrapper<unsigned[N]> res;
+	for (unsigned k = 1; k < N; ++k){
+		const auto prev = Idx;
+		Idx /= sizes[k];
+		res[k - 1] = prev - Idx;
+	}
+	res[N - 1] = Idx;
+	return res;
+}
+
+template <unsigned... Sizes>
+constexpr unsigned flatten_indices(const auto... args){	
+	unsigned res = 0;
+	([&] () { res *= Sizes; res += args; }(), ...);
+	return res;
+}
+
+template <unsigned NumVariants, class Seq = std::make_integer_sequence<unsigned, NumVariants>>
+struct multi_dispatcher;
+
+template <unsigned NumVariants, unsigned... Vx>
+struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
+
+	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>
+	struct with_table_size;
+	
+	template <unsigned TableSize, unsigned... Idx>
+	struct with_table_size<TableSize, std::integer_sequence<unsigned, Idx...> > {
+		
+		template <class... Vars>
+		static constexpr unsigned var_sizes[] = {Vars::size...};
+		
+		template <unsigned Indice, class Fn, class... Vars>
+		static constexpr auto func = [] (Fn fn, Vars... vars) -> decltype(auto) {
+			constexpr auto seq = unflatten(Indice, var_sizes<Vars...>);
+			return fn( get<seq.data[Vx]>(vars)... );
+		};
+		
+		template <class Fn, class... Vars>
+		using ReturnType = std::common_type_t< decltype( func<Idx, Fn, Vars...>(declval<Fn>(), declval<Vars>()...) )... >;
+		
+		// ugly typename, but GCC doesn't like using an alias here?
+		template <class Fn, class... Vars>
+		static constexpr ReturnType<Fn, Vars...>( *impl[TableSize] ) = {
+			func<Idx, Fn, Vars...>... 
+		};
+		
 	};
 };
 
 template <class... Ts>
 struct variant {
 	
+	/* 
+	template <std::size_t Idx>
+	friend constexpr auto& get (variant<Ts...>& v); */ 
+
 	static constexpr bool has_copy_assign 		= (std::is_copy_constructible_v<Ts> && ...);
 	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);
 	static constexpr bool has_copy_ctor			= (std::is_copy_constructible_v<Ts> && ...);
@@ -532,11 +483,10 @@ struct variant {
 	auto& emplace(Args&&... args){
 		using T = std::remove_reference_t<decltype(get<Idx>(*this))>;
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
-			current = -1;
+			current = npos;
 		new(static_cast<void*>(&get<Idx>(*this))) T (static_cast<Args&&>(args)...);
 		current = Idx;
 		return get<Idx>(*this);
-		//std::construct_at( &get<Idx>(*this), args... );
 	}
 	
 	template <class VisitorType>
@@ -570,6 +520,22 @@ struct variant {
 		});
 	}
 	
+	template <unsigned Idx>
+	inline constexpr auto& get() & noexcept	{ 
+		if (index() != Idx) std::terminate();
+		return storage.impl.template get<Idx>(); 
+	}
+	
+	template <unsigned Idx>
+	inline constexpr auto&& get() && noexcept { 
+		return std::move(storage.impl.template get<Idx>()); 
+	}
+	
+	template <unsigned Idx>
+	inline constexpr const auto& get() const noexcept { 
+		return storage.impl.template get<Idx>(); 
+	}
+	
 	using storage_t = variant_top_union<make_tree_union<Ts...>>;
 	
 	storage_t storage;
@@ -577,14 +543,51 @@ struct variant {
 };
 
 template <std::size_t Idx, class... Ts>
-auto& get (variant<Ts...>& v){
+constexpr auto& get (variant<Ts...>& v){
 	static_assert( Idx < sizeof...(Ts), "Index exceeds the variant size. ");
-	return (v.storage.impl.template get<Idx>());
-} 
+	return (v.template get<Idx>());
+}
+
+template <std::size_t Idx, class... Ts>
+constexpr const auto& get (const variant<Ts...>& v){
+	static_assert( Idx < sizeof...(Ts), "Index exceeds the variant size. ");
+	return (v.template get<Idx>());
+}
+
+template <std::size_t Idx, class... Ts>
+constexpr auto&& get (variant<Ts...>&& v){
+	static_assert( Idx < sizeof...(Ts), "Index exceeds the variant size. ");
+	return ( std::move(v.template get<Idx>()) );
+}
+
+template <std::size_t Idx, class... Ts>
+constexpr auto* get_if(variant<Ts...>& v){
+	if (v.index() == Idx) return &v.template get<Idx>();
+	else return nullptr;
+}
+
+template <std::size_t Idx, class... Ts>
+constexpr const auto* get_if(const variant<Ts...>& v){
+	if (v.index() == Idx) return &v.template get<Idx>();
+	else return nullptr;
+}
 
 template <class T, class... Ts>
-T& get (variant<Ts...>& v){
+constexpr T& get (variant<Ts...>& v){
 	return get<find_type<T, Ts...>()>(v);
+} 
+
+template <class Fn, class Var>
+constexpr decltype(auto) visit(Fn&& fn, Var&& var){
+	return var.visit(static_cast<Fn&&>(fn));
+}
+
+template <class Fn, class... Vs>
+constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
+	constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
+	const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
+	multi_dispatcher<sizeof...(Vs)>::template with_table_size<
+		max_size>::template ReturnType<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
 }
 
 
