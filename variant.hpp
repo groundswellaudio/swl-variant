@@ -3,9 +3,12 @@
 #include <new>
 #include <limits>
 
-//#include <iostream>
-
 namespace swl {
+
+template <class T>
+struct array_wrapper { 
+	T data;
+};
 
 template <class T, class... Ts>
 constexpr std::size_t find_type(){
@@ -110,7 +113,7 @@ inline constexpr bool has_non_ambiguous_match
 
 struct dummy_type{}; // used to fill the back of union nodes
 
-template <bool IsTerminal, class A, class B>
+template <bool IsTerminal, class... Ts>
 union variant_union;
 
 template <class T>
@@ -264,64 +267,50 @@ using smallest_suitable_integer_type =
 template <class... Ts>
 struct variant;
 
-template <std::size_t Idx, class... Ts>
-constexpr auto& get (variant<Ts...>& v);
-
-template <std::size_t Idx, class... Ts>
-constexpr auto& get (const variant<Ts...>& v);
-
-template <std::size_t Idx, class... Ts>
-constexpr auto& get (variant<Ts...>&& v);
-
 // ========================= visit dispatcher
 
-template <class Rt, class Variant, class Fn, unsigned Idx>
-constexpr Rt visit__(Variant v, Fn fn){
-	return fn( get<Idx>(v) );
+template <unsigned Idx, class Fn, class Var>
+constexpr decltype(auto) visit__private_simple__(Fn fn, Var var){
+	return static_cast<Fn&&>(fn)( static_cast<Var&&>(var) );
+}
+
+template <unsigned Idx, class Fn, class Var>
+constexpr decltype(auto) visit_with_index__(Fn fn, Var v){
+	return static_cast<Fn&&>(fn)(static_cast<Var&&>(v).template get<Idx>(), std::integral_constant<unsigned, Idx>{});
 }
 
 template <class Seq, bool PassIndex>
 struct make_dispatcher;
 
+template <class Fn, class... Vars>
+using rtype_visit = decltype( declval<Fn>()( declval<Vars>().template get<0>()... ) );
+
+template <class Fn, class Var>
+using rtype_index_visit = decltype( declval<Fn>()( declval<Var>().template get<0>(), 
+								 	std::integral_constant<std::size_t, 0>{} ) );
+	
 template <std::size_t... Idx>
 struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
 	
-	template <class Variant, class Fn>
-	using ReturnType = decltype( declval<Fn>()( ::swl::get<0>(declval<Variant>()) ) );
-	
-	template <class Variant, class Visitor>
-	using fn_ptr = ReturnType<Variant, Visitor>(*)(Variant, Visitor visitor);
-	
-	template <class Variant, class Fn>
-	static constexpr fn_ptr<Variant, Fn> dispatcher[sizeof...(Idx)] = {
-		[] (Variant var, Fn self) {
-				return self( static_cast<Variant&&>(var).template get<Idx>() );
+	template <class Fn, class Var>
+	static constexpr rtype_visit<Fn, Var> (*dispatcher[sizeof...(Idx)]) (Fn, Var) = {
+		[] (Fn self, Var var) {
+				return self( static_cast<Var&&>(var).template get<Idx>() );
 		}...
+		//::swl::visit__private_simple__<Idx, Fn, Var>...
 	};
 };
-
+								 	
 template <std::size_t... Idx>
 struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
 	
-	template <class Variant, class Fn>
-	using ReturnType = decltype( declval<Fn>()( declval<Variant>().template get<0>(), 
-								 std::integral_constant<std::size_t, 0>{} ) );
-	
-	template <class Variant, class Visitor>
-	using fn_ptr = ReturnType<Variant, Visitor>(*)(Variant, Visitor visitor);
-	
-	template <class Variant, class Visitor>
-	static constexpr fn_ptr<Variant, Visitor> dispatcher[sizeof...(Idx)] = {
-		[] (Variant var, Visitor self) {
-				return self( static_cast<Variant&&>(var).template get<Idx>(), 
-							 std::integral_constant<std::size_t, Idx>{});
-		}...
+	template <class Fn, class Var>
+	static constexpr rtype_index_visit<Fn, Var>(*dispatcher[sizeof...(Idx)]) (Fn, Var) = {
+		[] (Fn fn, Var var){
+			return static_cast<Fn&&>(fn)(static_cast<Var&&>(var).template get<Idx>(), std::integral_constant<unsigned, Idx>{});
+		}... 
+		//::swl::visit_with_index__<Idx, Fn, Var>...
 	};
-};
-
-template <class T>
-struct array_wrapper { 
-	T data;
 };
 
 template <std::size_t N>
@@ -413,47 +402,33 @@ constexpr auto make_unflattened_indices(const unsigned(&strides)[N]){
 template <unsigned NumVariants, class Seq = std::make_integer_sequence<unsigned, NumVariants>>
 struct multi_dispatcher;
 
-
 template <unsigned NumVariants, unsigned... Vx>
 struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 	
-	template <unsigned TotalSize, unsigned... VarSizes>
+	template <unsigned... VarSizes>
 	struct make_indices {
 	
 		static constexpr unsigned total_size = (VarSizes * ...);
-		static constexpr unsigned var_sizes[] = {VarSizes...};
+		static constexpr unsigned var_sizes[sizeof...(VarSizes)] = {VarSizes...};
 		
 		static constexpr array_wrapper<unsigned[total_size][sizeof...(VarSizes)]> indices = 
 			make_unflattened_indices<sizeof...(VarSizes), total_size>(var_sizes);
-		//static constexpr auto indices = 	
 	};
 	
 	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>
 	struct with_table_size;
 	
+	template <unsigned FlatIdx, class Fn, class... Vars>
+		static constexpr decltype(auto) func (Fn fn, Vars... vars){
+		constexpr auto& coord = make_indices<std::decay_t<Vars>::size...>::indices.data[FlatIdx];
+		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template get<coord[Vx]>()... );
+	}
+		
 	template <unsigned TableSize, unsigned... Idx>
 	struct with_table_size<TableSize, std::integer_sequence<unsigned, Idx...> > {
 		
-		template <class... Vars>
-		static constexpr unsigned var_sizes[sizeof...(Vars)] = {std::decay_t<Vars>::size...};
-		
-		template <class... Vars>
-		static constexpr array_wrapper<unsigned[sizeof...(Idx)][sizeof...(Vx)]> indices = 
-			make_indices<
-			make_unflattened_indices<sizeof...(Vx), sizeof...(Idx)>(var_sizes<Vars...>);
-		
-		template <unsigned FlatIdx, class Fn, class... Vars>
-		static constexpr decltype(auto) func (Fn fn, Vars... vars){
-			constexpr auto& coord = indices<Vars...>.data[FlatIdx];
-			return fn ( vars.template get<coord[Vx]>()... );
-		}
-		
 		template <class Fn, class... Vars>
-		using ReturnType = decltype( declval<Fn>()( get<0>(declval<Vars>())... ) );
-		
-		// ugly typename, but GCC doesn't like using an alias here?
-		template <class Fn, class... Vars>
-		static constexpr ReturnType<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
+		static constexpr rtype_visit<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
 			func<Idx, Fn, Vars...>...
 		};
 	};
@@ -461,8 +436,13 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 
 } // V2 
 
+struct variant_detector_t{};
+
+template <class T>
+inline constexpr bool is_variant = std::is_base_of_v<variant_detector_t, std::decay_t<T>>;
+
 template <class... Ts>
-struct variant {
+struct variant : private variant_detector_t {
 
 	static constexpr bool has_copy_assign 		= (std::is_copy_constructible_v<Ts> && ...);
 	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);
@@ -490,6 +470,13 @@ struct variant {
 		requires std::is_default_constructible_v<alternative<0>> 
 	= default;
 	
+	// generic constructor
+	template <class T>
+		requires ( !std::is_same_v<std::decay_t<T>, variant> && has_non_ambiguous_match<T, Ts...> )
+	constexpr variant(T&& t) {
+			
+	}
+	
 	template <std::size_t Index, class... Args>
 	constexpr variant(in_place_index_t<Index> tag, Args&&... args)
 	: storage{tag, static_cast<Args&&>(args)...} {}
@@ -502,7 +489,7 @@ struct variant {
 	// move ctor
 	constexpr variant(variant&& o)
 		requires (has_move_ctor and not trivial_move_ctor)
-	: storage{ storage_t::valueless_t() } 
+	: storage{ valueless_construct_t{} } 
 	{
 		o.visit_with_index( [this] (auto&& elem, auto index_) {
 			emplace<index_>(decltype(elem)(elem));
@@ -512,7 +499,7 @@ struct variant {
 	// copy ctor
 	constexpr variant(const variant& o)
 		requires has_copy_ctor
-	: storage{ storage_t::valueless_t() } 
+	: storage{ valueless_construct_t{} } 
 	{
 		o.visit_with_index( [this] (auto&& elem, auto index_) {
 			emplace<index_>(decltype(elem)(elem));
@@ -541,23 +528,17 @@ struct variant {
 	constexpr variant& operator=(const variant& o)
 		requires (has_copy_assign and not(trivial_copy_assign && trivial_copy_ctor))
 	{	
-		if (o.index() == index()){
-			o.visit_with_index( [this] (const auto& elem, auto index_cst) {
+		o.visit_with_index( [this] (const auto& elem, auto index_cst) {
+			if (index() == index_cst)
 				get<index_cst>(*this) = elem;
-			});
-		}
-		else {
-			// if (has nothrow_copy or hasn't move_construct)
-			o.visit_with_index( [this] (const auto& elem, auto index_cst) {
+			else
 				emplace<index_cst>(elem);
-			});
-		}
+		});
 		return *this;
 	}
 	
 	// move assignment
 	constexpr variant& operator=(variant&& o){
-		
 		o.visit_with_index( [this] (auto&& elem, auto index_cst) {
 			if (index() == index_cst)
 				get<index_cst>(*this) = std::move(elem);
@@ -572,18 +553,23 @@ struct variant {
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
 			current = npos;
 		new(static_cast<void*>(&get<Idx>())) T (static_cast<Args&&>(args)...);
-		current = Idx;
+		current = static_cast<index_type>(Idx);
 		return get<Idx>();
 	}
 	
 	template <class VisitorType>
 	constexpr decltype(auto) visit(VisitorType&& fn){
-		make_dispatcher_t<false>::template dispatcher<variant&, VisitorType&&>[current](*this, decltype(fn)(fn));
+		return make_dispatcher_t<false>::template dispatcher<VisitorType&&, variant&>[current](decltype(fn)(fn), *this);
 	}
 	
 	template <class VisitorType>
 	constexpr decltype(auto) visit_with_index(VisitorType&& fn){ 
-		make_dispatcher_t<true>::template dispatcher<variant&, VisitorType&&>[current](*this, decltype(fn)(fn));
+		return make_dispatcher_t<true>::template dispatcher<VisitorType&&, variant&>[current](decltype(fn)(fn), *this);
+	}
+	
+	template <class VisitorType>
+	constexpr decltype(auto) visit_with_index(VisitorType&& fn) const { 
+		return make_dispatcher_t<true>::template dispatcher<VisitorType&&, const variant&>[current](decltype(fn)(fn), *this);
 	}
 	
 	// ====================== probes 
@@ -619,7 +605,7 @@ struct variant {
 	
 	template <unsigned Idx>
 	inline constexpr const auto& get() const noexcept { 
-		return storage.impl.template get<Idx>(); 
+		return const_cast<variant&>(*this).get<Idx>();
 	}
 	
 	using storage_t = variant_top_union<make_tree_union<Ts...>>;
@@ -668,18 +654,33 @@ constexpr decltype(auto) visit(Fn&& fn, Var&& var){
 	return var.visit(static_cast<Fn&&>(fn));
 }
 
-} // SWL
-
-namespace swl {
-
+/* 
 template <class Fn, class... Vs>
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 	constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
 	using dispatcher_t = typename multi_dispatcher<sizeof...(Vs)>::template with_table_size<max_size>;
 	const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
-	//std::cout << table_indice << std::endl;
 	return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
+} */ 
+
+template <class A>
+struct eq_comp {
+	constexpr bool operator()(const auto& elem, auto index) const noexcept { 
+		return (a.template get<index>() == elem); 
+	}
+	const A& a;
+};
+
+template <class... Ts>
+constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
+	if (v1.index() != v2.index()) return false;
+	if (v1.valueless_by_exception()) return true;
+	else return v1.visit_with_index( eq_comp<const variant<Ts...>&>{v1} );
 }
 
-
+template <class T, class... Ts>
+constexpr bool holds_alternative(const variant<Ts...>& v){
+	return (get_if<T>(v) != nullptr);
 }
+
+} // SWL

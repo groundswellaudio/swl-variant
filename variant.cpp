@@ -122,7 +122,7 @@ struct ctor_detect{
 };
 
 #include "variant.hpp"
-
+//#include <iostream>
 //#include <variant>
 
 int main(){
@@ -132,8 +132,14 @@ int main(){
 	
 	//show_type< swl::variant<int, float, char>::storage_t >();
 	
-	variant<PACK2> vr1, vr2;
+	variant<PACK4> vr1, vr2;
 	
+	vr1.emplace<0>(4);
+	vr2.emplace<0>(4);
+	
+	//std::cout << (vr1 == vr2) << std::endl;
+	
+	visit( [] (auto v) {}, vr1 );
 	/* 
 	vrx.emplace<1>(2.33f);
 	
@@ -142,8 +148,9 @@ int main(){
 	vr2.emplace<0>(1); */ 
 	
 	
-	visit( [] (auto a, auto b) {}, vr1, vr2 );
+	//visit( [] (auto a) {}, vr1);
 	
+	//visit( [] (auto a, auto b) {}, vr1, vr2 );
 	/* 
 	visit( [] (auto& a, auto& b) {
 		return a;
