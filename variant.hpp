@@ -7,6 +7,15 @@
 
 namespace swl {
 
+template <class T, class... Ts>
+constexpr std::size_t find_type(){
+	constexpr auto size = sizeof...(Ts);
+	constexpr bool same[size] = {std::is_same_v<T, Ts>...};
+	for (std::size_t k = 0; k < size; ++k)
+		if (same[k]) return k;
+	return size;
+}
+
 namespace variant__ {
 	
 	template <class... Ts>
@@ -106,6 +115,9 @@ union variant_union;
 
 template <class T>
 struct inplace_type_t{};
+
+template <std::size_t Index>
+struct in_place_index_t{};
 
 template <std::size_t Index>
 inline static constexpr in_place_index_t<Index> in_place_index;
@@ -275,11 +287,7 @@ template <std::size_t... Idx>
 struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
 	
 	template <class Variant, class Fn>
-	using ReturnType = 
-		 std::common_type_t< decltype(
-			declval<Fn>()( ::swl::get<Idx>(declval<Variant>()) )
-		)...  
-	>; 
+	using ReturnType = decltype( declval<Fn>()( ::swl::get<0>(declval<Variant>()) ) );
 	
 	template <class Variant, class Visitor>
 	using fn_ptr = ReturnType<Variant, Visitor>(*)(Variant, Visitor visitor);
@@ -296,12 +304,8 @@ template <std::size_t... Idx>
 struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
 	
 	template <class Variant, class Fn>
-	using ReturnType =
-		 std::common_type_t< decltype(
-			declval<Fn>()( declval<Variant>().template get<Idx>(), std::integral_constant<std::size_t, Idx>{} ) 
-		)
-		... 
-	>;
+	using ReturnType = decltype( declval<Fn>()( declval<Variant>().template get<0>(), 
+								 std::integral_constant<std::size_t, 0>{} ) );
 	
 	template <class Variant, class Visitor>
 	using fn_ptr = ReturnType<Variant, Visitor>(*)(Variant, Visitor visitor);
@@ -339,6 +343,8 @@ constexpr unsigned flatten_indices(const auto... args){
 	return res;
 }
 
+namespace v1 {
+
 template <unsigned NumVariants, class Seq = std::make_integer_sequence<unsigned, NumVariants>>
 struct multi_dispatcher;
 
@@ -355,11 +361,10 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 		static constexpr unsigned var_sizes[sizeof...(Vars)] = {std::decay_t<Vars>::size...};
 		
 		template <unsigned Indice, class Fn, class... Vars>
-		static constexpr auto func = [] (Fn fn, Vars... vars) -> decltype(auto) {
+		static constexpr decltype(auto) func(Fn fn, Vars... vars) {
 			constexpr auto seq = unflatten<sizeof...(Vars)>(Indice, var_sizes<Vars...>);
-			//((std::cout << seq.data[Vx] << " "), ...) << std::endl;
 			return fn( get<seq.data[Vx]>(vars)... );
-		};
+		}
 		
 		template <class Fn, class... Vars>
 		using ReturnType = decltype( func<0, Fn, Vars...>(declval<Fn>(), declval<Vars>()...) );
@@ -373,12 +378,91 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 	};
 };
 
+} // V1
+
+//  for visit of two variants of size 24 : clang ~1.2 sec, gcc ~4.45 sec
+
+inline namespace v2 {
+
+template <unsigned N, unsigned TotalSize>
+constexpr auto make_unflattened_indices(const unsigned(&strides)[N]){
+	array_wrapper<unsigned[TotalSize][N]> res;
+	
+	float walker[N - 1] {0};
+	const auto delta_walk = [&strides] () {
+		array_wrapper<float[N - 1]> res {{ 1.f / static_cast<float>(strides[N - 1]) }};
+		for (unsigned k = 0; k < N - 2; ++k)
+			res.data[N - k - 3] /= (static_cast<float>(strides[N - 1 - k]) * res.data[N - k - 2]);
+		return res;
+	}();
+	
+	unsigned walk_lsb = 0;
+	for (unsigned k = 0; k < TotalSize; ++k){
+		for (unsigned x = 0; x < N - 1; ++x){
+			res.data[k][x] = walker[x];
+			walker[x] += delta_walk.data[x];
+			if (static_cast<unsigned>(walker[x]) >= strides[x]) walker[x] = 0;
+		}
+		res.data[k][N - 1] = walk_lsb;
+		++walk_lsb;
+		if (walk_lsb >= strides[N - 1]) walk_lsb = 0;
+	}
+	return res;
+}
+
+template <unsigned NumVariants, class Seq = std::make_integer_sequence<unsigned, NumVariants>>
+struct multi_dispatcher;
+
+
+template <unsigned NumVariants, unsigned... Vx>
+struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
+	
+	template <unsigned TotalSize, unsigned... VarSizes>
+	struct make_indices {
+	
+		static constexpr unsigned total_size = (VarSizes * ...);
+		static constexpr unsigned var_sizes[] = {VarSizes...};
+		
+		static constexpr array_wrapper<unsigned[total_size][sizeof...(VarSizes)]> indices = 
+			make_unflattened_indices<sizeof...(VarSizes), total_size>(var_sizes);
+		//static constexpr auto indices = 	
+	};
+	
+	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>
+	struct with_table_size;
+	
+	template <unsigned TableSize, unsigned... Idx>
+	struct with_table_size<TableSize, std::integer_sequence<unsigned, Idx...> > {
+		
+		template <class... Vars>
+		static constexpr unsigned var_sizes[sizeof...(Vars)] = {std::decay_t<Vars>::size...};
+		
+		template <class... Vars>
+		static constexpr array_wrapper<unsigned[sizeof...(Idx)][sizeof...(Vx)]> indices = 
+			make_indices<
+			make_unflattened_indices<sizeof...(Vx), sizeof...(Idx)>(var_sizes<Vars...>);
+		
+		template <unsigned FlatIdx, class Fn, class... Vars>
+		static constexpr decltype(auto) func (Fn fn, Vars... vars){
+			constexpr auto& coord = indices<Vars...>.data[FlatIdx];
+			return fn ( vars.template get<coord[Vx]>()... );
+		}
+		
+		template <class Fn, class... Vars>
+		using ReturnType = decltype( declval<Fn>()( get<0>(declval<Vars>())... ) );
+		
+		// ugly typename, but GCC doesn't like using an alias here?
+		template <class Fn, class... Vars>
+		static constexpr ReturnType<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
+			func<Idx, Fn, Vars...>...
+		};
+	};
+};
+
+} // V2 
+
 template <class... Ts>
 struct variant {
-	
-	/* 
-	template <std::size_t Idx>
-	friend constexpr auto& get (variant<Ts...>& v); */ 
 
 	static constexpr bool has_copy_assign 		= (std::is_copy_constructible_v<Ts> && ...);
 	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);

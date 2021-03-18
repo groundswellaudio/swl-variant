@@ -1,10 +1,8 @@
-#include <type_traits>
-#include <utility>
-#include <new>
-#include <limits>
+
 //#include <tuple>
 //#include <variant>
 
+/* 
 template <bool B>
 struct conditional;
 
@@ -29,21 +27,6 @@ constexpr bool find_first( const T(&array)[N], const T v ){
 	while (it != &array[N] and *it != v) ++it;
 	return (it - &array[0]);
 }
-
-template <class T, class... Ts>
-constexpr std::size_t find_type(){
-	constexpr auto size = sizeof...(Ts);
-	constexpr bool same[size] = {std::is_same_v<T, Ts>...};
-	for (std::size_t k = 0; k < size; ++k)
-		if (same[k]) return k;
-	return size;
-}
-
-template <std::size_t Index>
-struct in_place_index_t{};
-
-template <std::size_t Index>
-inline static constexpr in_place_index_t<Index> in_place_index;
 
 
 template <class T>
@@ -81,7 +64,7 @@ constexpr auto make_flat_sequence(){
     }
     
     return res;
-}
+} */ 
 
 /* 
 template <class Visitor, class... Vs, unsigned... Idx>
