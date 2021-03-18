@@ -362,7 +362,7 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 		};
 		
 		template <class Fn, class... Vars>
-		using ReturnType = std::common_type_t< decltype( func<Idx, Fn, Vars...>(declval<Fn>(), declval<Vars>()...) )... >;
+		using ReturnType = decltype( func<0, Fn, Vars...>(declval<Fn>(), declval<Vars>()...) );
 		
 		// ugly typename, but GCC doesn't like using an alias here?
 		template <class Fn, class... Vars>

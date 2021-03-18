@@ -140,26 +140,31 @@ struct ctor_detect{
 
 #include "variant.hpp"
 
-#include <variant>
+//#include <variant>
 
 int main(){
 	
+	using namespace swl;
 	//swl::variant<int, float, char> vrx;
 	
 	//show_type< swl::variant<int, float, char>::storage_t >();
 	
-	swl::variant<PACK2> vrx;
+	variant<PACK2> vr1, vr2;
 	
+	/* 
 	vrx.emplace<1>(2.33f);
 	
-	swl::variant<PACK2> vr2;
+	std::variant<PACK2> vr2;
 	
-	vr2.emplace<0>(1);
+	vr2.emplace<0>(1); */ 
 	
 	
-	//visit([] (auto& v) {}, 		   vrx );
+	visit( [] (auto a, auto b) {}, vr1, vr2 );
 	
-	visit( [] (auto& a, auto& b) {}, vrx, vr2 );
+	/* 
+	visit( [] (auto& a, auto& b) {
+		return a;
+	}, vrx, vr2 ); */ 
 	
 	
 	//visit([] (auto& v) {}, vrx);
