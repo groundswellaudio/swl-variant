@@ -111,6 +111,7 @@ auto visit(Visitor&& v, Vs&&... variants){
 } */ 
 
 #define PACK int, float, char, bool, double, float
+#define PACK1 PACK, PACK
 #define PACK2 PACK, PACK, PACK, PACK
 #define PACK3 PACK2, PACK2, PACK2, PACK2
 #define PACK4 PACK3, PACK3, PACK3, PACK3
@@ -147,14 +148,19 @@ int main(){
 	
 	//show_type< swl::variant<int, float, char>::storage_t >();
 	
-	swl::variant<PACK> vrx;
+	swl::variant<PACK2> vrx;
 	
-	swl::variant<PACK> vr2;
+	vrx.emplace<1>(2.33f);
+	
+	swl::variant<PACK2> vr2;
+	
+	vr2.emplace<0>(1);
 	
 	
-	visit([] (auto& v) {}, 		   vrx );
+	//visit([] (auto& v) {}, 		   vrx );
 	
 	visit( [] (auto& a, auto& b) {}, vrx, vr2 );
+	
 	
 	//visit([] (auto& v) {}, vrx);
 	//using seq = make_index_seq<1>::template f<1024, 0>;

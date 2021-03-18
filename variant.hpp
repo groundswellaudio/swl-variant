@@ -3,6 +3,8 @@
 #include <new>
 #include <limits>
 
+//#include <iostream>
+
 namespace swl {
 
 namespace variant__ {
@@ -319,14 +321,14 @@ struct array_wrapper {
 };
 
 template <std::size_t N>
-constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[] ){
+constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[N]){
 	array_wrapper<unsigned[N]> res;
 	for (unsigned k = 1; k < N; ++k){
 		const auto prev = Idx;
 		Idx /= sizes[k];
-		res[k - 1] = prev - Idx;
+		res.data[N - k] = prev - Idx * sizes[k];
 	}
-	res[N - 1] = Idx;
+	res.data[0] = Idx;
 	return res;
 }
 
@@ -350,11 +352,12 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 	struct with_table_size<TableSize, std::integer_sequence<unsigned, Idx...> > {
 		
 		template <class... Vars>
-		static constexpr unsigned var_sizes[] = {Vars::size...};
+		static constexpr unsigned var_sizes[sizeof...(Vars)] = {std::decay_t<Vars>::size...};
 		
 		template <unsigned Indice, class Fn, class... Vars>
 		static constexpr auto func = [] (Fn fn, Vars... vars) -> decltype(auto) {
-			constexpr auto seq = unflatten(Indice, var_sizes<Vars...>);
+			constexpr auto seq = unflatten<sizeof...(Vars)>(Indice, var_sizes<Vars...>);
+			//((std::cout << seq.data[Vx] << " "), ...) << std::endl;
 			return fn( get<seq.data[Vx]>(vars)... );
 		};
 		
@@ -363,7 +366,7 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 		
 		// ugly typename, but GCC doesn't like using an alias here?
 		template <class Fn, class... Vars>
-		static constexpr ReturnType<Fn, Vars...>( *impl[TableSize] ) = {
+		static constexpr ReturnType<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
 			func<Idx, Fn, Vars...>... 
 		};
 		
@@ -481,12 +484,12 @@ struct variant {
 	
 	template <std::size_t Idx, class... Args>
 	auto& emplace(Args&&... args){
-		using T = std::remove_reference_t<decltype(get<Idx>(*this))>;
+		using T = std::remove_reference_t<decltype(get<Idx>())>;
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
 			current = npos;
-		new(static_cast<void*>(&get<Idx>(*this))) T (static_cast<Args&&>(args)...);
+		new(static_cast<void*>(&get<Idx>())) T (static_cast<Args&&>(args)...);
 		current = Idx;
-		return get<Idx>(*this);
+		return get<Idx>();
 	}
 	
 	template <class VisitorType>
@@ -522,7 +525,6 @@ struct variant {
 	
 	template <unsigned Idx>
 	inline constexpr auto& get() & noexcept	{ 
-		if (index() != Idx) std::terminate();
 		return storage.impl.template get<Idx>(); 
 	}
 	
@@ -582,12 +584,17 @@ constexpr decltype(auto) visit(Fn&& fn, Var&& var){
 	return var.visit(static_cast<Fn&&>(fn));
 }
 
+} // SWL
+
+namespace swl {
+
 template <class Fn, class... Vs>
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 	constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
+	using dispatcher_t = typename multi_dispatcher<sizeof...(Vs)>::template with_table_size<max_size>;
 	const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
-	multi_dispatcher<sizeof...(Vs)>::template with_table_size<
-		max_size>::template ReturnType<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
+	//std::cout << table_indice << std::endl;
+	return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
 }
 
 
