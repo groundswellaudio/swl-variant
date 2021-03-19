@@ -21,6 +21,11 @@ inline static constexpr in_place_index_t<Index> in_place_index;
 template <class T>
 inline static constexpr in_place_type_t<T> in_place_type;
 
+struct bad_variant_access : std::exception {
+	const char* what() const noexcept override { return message; }
+	const char* message;
+};
+
 namespace vimpl {
 	#include "variant_detail.hpp"
 	#include "variant_visit.hpp"
@@ -32,23 +37,18 @@ template <class T>
 inline constexpr bool is_variant = std::is_base_of_v<variant_detector_t, std::decay_t<T>>;
 
 template <class... Ts>
-struct variant : private variant_detector_t {
-
+class variant : private variant_detector_t {
+	
+	static constexpr bool is_trivial 			= (std::is_trivial_v<Ts> && ...);
 	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);
-	static constexpr bool trivial_move_ctor		= has_move_ctor && (std::is_trivially_move_constructible_v<Ts> && ...);
+	static constexpr bool trivial_move_ctor		= is_trivial || has_move_ctor && (std::is_trivially_move_constructible_v<Ts> && ...);
 	static constexpr bool has_copy_ctor			= (std::is_copy_constructible_v<Ts> && ...);
-	static constexpr bool trivial_copy_ctor 	= has_copy_ctor && (std::is_trivially_copy_constructible_v<Ts> && ...);
+	static constexpr bool trivial_copy_ctor 	= is_trivial || has_copy_ctor && (std::is_trivially_copy_constructible_v<Ts> && ...);
 	static constexpr bool has_copy_assign 		= (std::is_copy_constructible_v<Ts> && ...);
-	static constexpr bool trivial_copy_assign 	= has_copy_assign && (std::is_trivially_copy_assignable_v<Ts> && ...);
+	static constexpr bool trivial_copy_assign 	= is_trivial || has_copy_assign && (std::is_trivially_copy_assignable_v<Ts> && ...);
 	static constexpr bool has_move_assign		= (std::is_move_assignable_v<Ts> && ...);
-	static constexpr bool trivial_move_assign   = has_move_assign && (std::is_trivially_move_assignable_v<Ts> && ...);
+	static constexpr bool trivial_move_assign   = is_trivial || has_move_assign && (std::is_trivially_move_assignable_v<Ts> && ...);
 	static constexpr bool trivial_dtor 			= (std::is_trivially_destructible_v<Ts> && ...);
-	
-	static constexpr unsigned size = sizeof...(Ts);
-	
-	using index_type = vimpl::smallest_suitable_integer_type<sizeof...(Ts) + 1, unsigned char, unsigned short, unsigned>;
-	
-	static constexpr index_type npos = -1;
 	
 	template <std::size_t Idx>
 	using alternative = vimpl::type_pack_element<Idx, Ts...>;
@@ -56,7 +56,17 @@ struct variant : private variant_detector_t {
 	template <bool PassIndex = false>
 	using make_dispatcher_t = vimpl::make_dispatcher<std::make_index_sequence<sizeof...(Ts)>, PassIndex>;
 	
-	// ======================================= constructors (20.7.3.2)
+	public : 
+	
+	static constexpr bool can_be_valueless = is_trivial;
+	
+	static constexpr unsigned size = sizeof...(Ts);
+	
+	using index_type = vimpl::smallest_suitable_integer_type<sizeof...(Ts) + can_be_valueless, unsigned char, unsigned short, unsigned>;
+	
+	static constexpr index_type npos = -1;
+	
+	// ============================================= constructors (20.7.3.2)
 	
 	// default constructor
 	constexpr variant() 
@@ -200,7 +210,9 @@ struct variant : private variant_detector_t {
 	// ==================================== value status (20.7.3.6)
 	
 	constexpr bool valueless_by_exception() const noexcept {
-		return current == npos;
+		if constexpr ( can_be_valueless )
+			return current == npos;
+		else return false;
 	}
 	
 	constexpr std::size_t index() const noexcept {
@@ -261,19 +273,18 @@ constexpr bool holds_alternative(const variant<Ts...>& v) noexcept {
 template <std::size_t Idx, class... Ts>
 constexpr auto& get (variant<Ts...>& v){
 	static_assert( Idx < sizeof...(Ts), "Index exceeds the variant size. ");
+	if (v.index() != Idx) throw bad_variant_access{"swl::variant : Bad variant access."};
 	return (v.template get<Idx>());
 }
 
 template <std::size_t Idx, class... Ts>
 constexpr const auto& get (const variant<Ts...>& v){
-	static_assert( Idx < sizeof...(Ts), "Index exceeds the variant size. ");
-	return (v.template get<Idx>());
+	return get<Idx>(const_cast<variant<Ts...>&>(v));
 }
 
 template <std::size_t Idx, class... Ts>
 constexpr auto&& get (variant<Ts...>&& v){
-	static_assert( Idx < sizeof...(Ts), "Index exceeds the variant size. ");
-	return ( std::move(v.template get<Idx>()) );
+	return std::move( get<Idx>(v) );
 }
 
 // ========= get by type
@@ -306,10 +317,19 @@ template <class Fn, class... Vs>
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 	if constexpr (sizeof...(Vs) == 1){
 		return [] (auto&& fn, auto&& head) { 
+			
+			if constexpr ( std::decay_t<decltype(head)>::can_be_valueless )
+				if (head.valueless_by_exception()) 
+					throw bad_variant_access{"swl::variant : Bad variant access in single swl::visit."};
+			
 			return decltype(head)(head).visit(static_cast<Fn&&>(fn));
 		} (static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
 	}
 	else {
+		if constexpr ( std::decay_t<Vs>::can_be_valueless || ... )
+			if ( vars.valueless_by_exception() || ... ) 
+				throw bad_variant_access{"swl::variant : Bad variant access in multi swl::visit."};
+		
 		using namespace vimpl;
 		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
 		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs)>::template with_table_size<max_size>;
@@ -328,9 +348,11 @@ constexpr R visit(Fn&& fn, Vs&&... vars){
 template <class... Ts>
 	requires ( vimpl::has_eq_comp<Ts> && ... )
 constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
-	if (v1.index() != v2.index()) return false;
-	if (v1.valueless_by_exception()) return true;
-	else return v2.visit_with_index( vimpl::eq_comp<const variant<Ts...>&>{v1} );
+	if (v1.index() != v2.index()) 
+		return false;
+	if constexpr (variant<Ts...>::can_be_valueless)
+		if (v1.valueless_by_exception()) return true;
+	return v2.visit_with_index( vimpl::eq_comp<const variant<Ts...>&>{v1} );
 }
 
 template <class... Ts>
@@ -344,10 +366,14 @@ template <class... Ts>
 	requires ( vimpl::has_lesser_comp<const Ts&> && ... )
 constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 	if ( v1.index() == v2.index() )
+		if constexpr (variant<Ts...>::can_be_valueless){
+			if (v2.valueless_by_exception()) return false;
+			if (v1.valueless_by_exception()) return true;
+		}
 		return v1.visit_with_index( [&v2] (auto& elem, auto index)
 		{
 			return (elem < v2.template get<index>());
-		}); 
+		});
 	else
 		return (v1.index() < v2.index());
 }
@@ -361,10 +387,13 @@ template <class... Ts>
 	requires ( vimpl::has_lesser_than_comp<const Ts&> && ... )
 constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 	if ( v1.index() == v2.index() )
-		return v1.visit_with_index( [&v2] (auto& elem, auto index)
-		{
+		if constexpr (variant<Ts...>::can_be_valueless){
+			if (v2.valueless_by_exception()) return false;
+			if (v1.valueless_by_exception()) return true;
+		}
+		return v1.visit_with_index( [&v2] (auto& elem, auto index) {
 			return (elem <= v2.template get<index>());
-		}); 
+		});
 	else
 		return (v1.index() < v2.index());
 }
