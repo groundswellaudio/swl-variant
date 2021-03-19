@@ -122,17 +122,19 @@ struct ctor_detect{
 };
 
 #include "variant.hpp"
-//#include <iostream>
-//#include <variant>
+#include <iostream>
+#include <variant>
 
 int main(){
 	
-	using namespace swl;
-	//swl::variant<int, float, char> vrx;
+	//using namespace swl;
+	std::variant<int, unsigned, float, char> vrx { 3 };
+	
+	visit( [] (auto x) { std::cout << x << std::endl;}, vrx );
 	
 	//show_type< swl::variant<int, float, char>::storage_t >();
 	
-	variant<PACK4> vr1, vr2;
+	std::variant<PACK> vr1, vr2;
 	
 	vr1.emplace<0>(4);
 	vr2.emplace<0>(4);

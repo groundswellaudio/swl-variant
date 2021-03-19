@@ -1,3 +1,4 @@
+#include <exception>
 #include <type_traits>
 #include <utility>
 #include <new>
@@ -117,13 +118,17 @@ template <bool IsTerminal, class... Ts>
 union variant_union;
 
 template <class T>
-struct inplace_type_t{};
+struct in_place_type_t{};
 
 template <std::size_t Index>
 struct in_place_index_t{};
 
 template <std::size_t Index>
 inline static constexpr in_place_index_t<Index> in_place_index;
+
+template <class T>
+inline static constexpr in_place_type_t<T> in_place_type;
+
 
 template <class A, class B>
 union variant_union<false, A, B> {
@@ -297,7 +302,6 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
 		[] (Fn self, Var var) {
 				return self( static_cast<Var&&>(var).template get<Idx>() );
 		}...
-		//::swl::visit__private_simple__<Idx, Fn, Var>...
 	};
 };
 								 	
@@ -309,7 +313,6 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
 		[] (Fn fn, Var var){
 			return static_cast<Fn&&>(fn)(static_cast<Var&&>(var).template get<Idx>(), std::integral_constant<unsigned, Idx>{});
 		}... 
-		//::swl::visit_with_index__<Idx, Fn, Var>...
 	};
 };
 
@@ -356,11 +359,7 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 		}
 		
 		template <class Fn, class... Vars>
-		using ReturnType = decltype( func<0, Fn, Vars...>(declval<Fn>(), declval<Vars>()...) );
-		
-		// ugly typename, but GCC doesn't like using an alias here?
-		template <class Fn, class... Vars>
-		static constexpr ReturnType<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
+		static constexpr rtype_visit<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
 			func<Idx, Fn, Vars...>... 
 		};
 		
@@ -419,7 +418,7 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 	struct with_table_size;
 	
 	template <unsigned FlatIdx, class Fn, class... Vars>
-		static constexpr decltype(auto) func (Fn fn, Vars... vars){
+	static constexpr decltype(auto) func (Fn fn, Vars... vars){
 		constexpr auto& coord = make_indices<std::decay_t<Vars>::size...>::indices.data[FlatIdx];
 		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template get<coord[Vx]>()... );
 	}
@@ -473,13 +472,21 @@ struct variant : private variant_detector_t {
 	// generic constructor
 	template <class T>
 		requires ( !std::is_same_v<std::decay_t<T>, variant> && has_non_ambiguous_match<T, Ts...> )
-	constexpr variant(T&& t) {
-			
-	}
+	constexpr variant(T&& t) 
+	: variant{ in_place_index< find_type< best_overload_match<T, Ts...>, Ts... >() >, static_cast<T&&>(t) }
+	{}
 	
+	// construct at index
 	template <std::size_t Index, class... Args>
 	constexpr variant(in_place_index_t<Index> tag, Args&&... args)
-	: storage{tag, static_cast<Args&&>(args)...} {}
+	: storage{tag, static_cast<Args&&>(args)...}, current(Index) 
+	{}
+	
+	// construct a given type
+	template <class T, class... Args>
+	constexpr variant(in_place_type_t<T> tag, Args&&... args)
+	: variant{ in_place_index<find_type<T, Ts...>()>, static_cast<Args&&>(args)... }
+	{}
 	
 	// trivial move ctor
 	constexpr variant(variant&&)
@@ -519,6 +526,20 @@ struct variant : private variant_detector_t {
 		return *this;
 	}
 	
+	// ================================ destructors (20.7.3.3)
+	
+	constexpr ~variant() requires trivial_dtor = default;
+	
+	constexpr ~variant() requires (not trivial_dtor) {
+		visit( [] (auto& elem) {
+			using type = std::decay_t<decltype(elem)>;
+			if constexpr ( not std::is_trivially_destructible_v<type> )
+				elem.~type();
+		});
+	}
+	
+	// ================================ assignment (20.7.3.4)
+	
 	// trivial copy assignment
 	constexpr variant& operator=(const variant& o)
 		requires trivial_copy_assign && trivial_copy_ctor 
@@ -547,14 +568,54 @@ struct variant : private variant_detector_t {
 		});
 	}
 	
+	// ====================== modifiers (20.7.3.5)
+	
+	template <class T, class... Args>
+	T& emplace(Args&&... args){
+		static_assert( (static_cast<unsigned short>(std::is_same_v<T, Ts>) + ...) == 1,
+			"Variant emplace : the type to be emplaced must appear exactly once." ); 
+		
+		constexpr auto Index = find_type<T, Ts...>();	
+		emplace<Index>(static_cast<Args&&>(args)...);
+		return get<Index>();
+	}
+	
 	template <std::size_t Idx, class... Args>
 	auto& emplace(Args&&... args){
 		using T = std::remove_reference_t<decltype(get<Idx>())>;
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
 			current = npos;
+		this->~variant();
 		new(static_cast<void*>(&get<Idx>())) T (static_cast<Args&&>(args)...);
 		current = static_cast<index_type>(Idx);
 		return get<Idx>();
+	}
+	
+	// ====================== value status (20.7.3.6)
+	
+	constexpr bool valueless_by_exception() const noexcept {
+		return current == npos;
+	}
+	
+	constexpr std::size_t index() const noexcept {
+		return current;
+	}
+	
+	// +==================== methods for internal use
+	
+	template <unsigned Idx>
+	inline constexpr auto& get() & noexcept	{ 
+		return storage.impl.template get<Idx>(); 
+	}
+	
+	template <unsigned Idx>
+	inline constexpr auto&& get() && noexcept { 
+		return std::move(storage.impl.template get<Idx>()); 
+	}
+	
+	template <unsigned Idx>
+	inline constexpr const auto& get() const noexcept { 
+		return const_cast<variant&>(*this).get<Idx>();
 	}
 	
 	template <class VisitorType>
@@ -572,47 +633,23 @@ struct variant : private variant_detector_t {
 		return make_dispatcher_t<true>::template dispatcher<VisitorType&&, const variant&>[current](decltype(fn)(fn), *this);
 	}
 	
-	// ====================== probes 
-	constexpr bool valueless_by_exception() const noexcept {
-		return current == npos;
-	}
-	
-	constexpr std::size_t index() const noexcept {
-		return current;
-	}
-	
-	// trivial destructor
-	constexpr ~variant() requires trivial_dtor = default;
-	
-	// destructor
-	constexpr ~variant() requires (not trivial_dtor) {
-		visit( [] (auto& elem) {
-			using type = std::decay_t<decltype(elem)>;
-			if constexpr ( not std::is_trivially_destructible_v<type> )
-				elem.~type();
-		});
-	}
-	
-	template <unsigned Idx>
-	inline constexpr auto& get() & noexcept	{ 
-		return storage.impl.template get<Idx>(); 
-	}
-	
-	template <unsigned Idx>
-	inline constexpr auto&& get() && noexcept { 
-		return std::move(storage.impl.template get<Idx>()); 
-	}
-	
-	template <unsigned Idx>
-	inline constexpr const auto& get() const noexcept { 
-		return const_cast<variant&>(*this).get<Idx>();
-	}
+	private :
 	
 	using storage_t = variant_top_union<make_tree_union<Ts...>>;
 	
 	storage_t storage;
 	index_type current;
 };
+
+// ================================= value access (20.7.5)
+
+template <class T, class... Ts>
+constexpr bool holds_alternative(const variant<Ts...>& v) noexcept {
+	constexpr auto Index = find_type<T, Ts...>();
+	return v.index() == Index;
+}
+
+// ========= get by index
 
 template <std::size_t Idx, class... Ts>
 constexpr auto& get (variant<Ts...>& v){
@@ -632,6 +669,18 @@ constexpr auto&& get (variant<Ts...>&& v){
 	return ( std::move(v.template get<Idx>()) );
 }
 
+// ========= get by type
+
+template <class T, class... Ts>
+constexpr T& get (variant<Ts...>& v){
+	return get<find_type<T, Ts...>()>(v);
+}
+
+template <class T, class... Ts>
+constexpr const T& get (const variant<Ts...>& v){
+	return get<find_type<T, Ts...>()>(v);
+}
+
 template <std::size_t Idx, class... Ts>
 constexpr auto* get_if(variant<Ts...>& v){
 	if (v.index() == Idx) return &v.template get<Idx>();
@@ -644,24 +693,27 @@ constexpr const auto* get_if(const variant<Ts...>& v){
 	else return nullptr;
 }
 
-template <class T, class... Ts>
-constexpr T& get (variant<Ts...>& v){
-	return get<find_type<T, Ts...>()>(v);
-} 
+// =============================== visitation (20.7.7)
 
-template <class Fn, class Var>
-constexpr decltype(auto) visit(Fn&& fn, Var&& var){
-	return var.visit(static_cast<Fn&&>(fn));
-}
-
-/* 
 template <class Fn, class... Vs>
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
-	constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
-	using dispatcher_t = typename multi_dispatcher<sizeof...(Vs)>::template with_table_size<max_size>;
-	const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
-	return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
-} */ 
+	if constexpr (sizeof...(Vs) == 1){
+		return [] (auto&& fn, auto&& head) { 
+			return decltype(head)(head).visit(static_cast<Fn&&>(fn));
+		} (static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
+	}
+	else {
+		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
+		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs)>::template with_table_size<max_size>;
+		const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
+		return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
+	}
+}
+
+template <class R, class Fn, class... Vs>
+constexpr R visit(Fn&& fn, Vs&&... vars){
+	return visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
+}
 
 template <class A>
 struct eq_comp {
@@ -671,6 +723,9 @@ struct eq_comp {
 	const A& a;
 };
 
+
+// ==================== relational operators (20.7.6)
+
 template <class... Ts>
 constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
 	if (v1.index() != v2.index()) return false;
@@ -678,9 +733,45 @@ constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
 	else return v1.visit_with_index( eq_comp<const variant<Ts...>&>{v1} );
 }
 
-template <class T, class... Ts>
-constexpr bool holds_alternative(const variant<Ts...>& v){
-	return (get_if<T>(v) != nullptr);
+template <class... Ts>
+constexpr bool operator!=(const variant<Ts...>& v1, const variant<Ts...>& v2){
+	return not(v1 == v2);
+}
+
+template <class... Ts>
+constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
+	if ( v2.valueless_by_exception() ) return true;
+	if ( v1.valueless_by_exception() ) return false;
+	if ( v1.index() == v2.index() )
+		return v1.visit_with_index( [&v2] (auto& elem, auto index)
+		{
+			return (elem < v2.template get<index>());
+		}); 
+	else
+		return (v1.index() < v2.index());
+}
+
+template <class... Ts>
+constexpr bool operator>(const variant<Ts...>& v1, const variant<Ts...>& v2){
+	return v2 < v1;
+}
+
+template <class... Ts>
+constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
+	if ( v2.valueless_by_exception() ) return true;
+	if ( v1.valueless_by_exception() ) return false;
+	if ( v1.index() == v2.index() )
+		return v1.visit_with_index( [&v2] (auto& elem, auto index)
+		{
+			return (elem <= v2.template get<index>());
+		}); 
+	else
+		return (v1.index() < v2.index());
+}
+
+template <class... Ts>
+constexpr bool operator>=(const variant<Ts...>& v1, const variant<Ts...>& v2){
+	return v2 <= v1;
 }
 
 } // SWL
