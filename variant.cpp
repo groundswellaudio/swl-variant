@@ -125,12 +125,16 @@ struct ctor_detect{
 #include <iostream>
 #include <variant>
 
+struct my_type{};
+
 int main(){
 	
 	//using namespace swl;
-	std::variant<int, unsigned, float, char> vrx { 3 };
+	swl::variant<int, unsigned, float, char, my_type> vrx { 3 }, vrz;
 	
-	visit( [] (auto x) { std::cout << x << std::endl;}, vrx );
+	bool b = vrx >= vrz;
+	
+	//visit( [] (auto x) { std::cout << x << std::endl;}, vrx );
 	
 	//show_type< swl::variant<int, float, char>::storage_t >();
 	
