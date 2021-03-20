@@ -59,6 +59,10 @@ struct my_type{};
 
 int main(){
 	
+	static_assert( std::is_default_constructible_v<swl::variant<int>> );
+	
+	swl::variant<int> v;
+	
 	using namespace swl;
 	variant<PACK> v1, v2, v3, v4, v5;
 	

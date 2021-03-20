@@ -69,10 +69,10 @@ constexpr void increment(auto& walker, const auto& sizes){
 
 template <unsigned... Sizes>
 constexpr auto make_flat_sequence(){
-	constexpr unsigned sizes[] = {Sizes...};
-	constexpr unsigned total_size = (Sizes * ...);
-	constexpr unsigned num_dim = sizeof...(Sizes);
-	using walker_t = unsigned[sizeof...(Sizes)];
+	constexpr union_index_t sizes[] = {Sizes...};
+	constexpr union_index_t total_size = (Sizes * ...);
+	constexpr union_index_t num_dim = sizeof...(Sizes);
+	using walker_t = union_index_t[sizeof...(Sizes)];
 	array_wrapper<walker_t[total_size]> res {{0}};
 	
 	for (unsigned k = 0; k < total_size; k += num_dim){
@@ -93,11 +93,10 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 	template <unsigned... VarSizes>
 	struct make_indices {
 	
-		static constexpr unsigned total_size = (VarSizes * ...);
-		static constexpr unsigned var_sizes[sizeof...(VarSizes)] = {VarSizes...};
+		static constexpr union_index_t total_size = (VarSizes * ...);
+		static constexpr union_index_t var_sizes[sizeof...(VarSizes)] = {VarSizes...};
 		
-		static constexpr array_wrapper<unsigned[total_size][sizeof...(VarSizes)]> indices = 
-			make_flat_sequence<VarSizes...>();
+		static constexpr auto indices = make_flat_sequence<VarSizes...>();
 	};
 	
 	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>

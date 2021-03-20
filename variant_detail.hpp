@@ -101,6 +101,8 @@ struct emplace_into {
 
 struct dummy_type{}; // used to fill the back of union nodes
 
+using union_index_t = unsigned;
+
 template <bool IsTerminal, class... Ts>
 union variant_union;
 
@@ -121,7 +123,7 @@ union variant_union<false, A, B> {
 	constexpr variant_union(in_place_index_t<Index>, Args&&... args)
 	: b{ in_place_index<Index - A::elem_size>, static_cast<Args&&>(args)... } {} 
 	
-	template <std::size_t Index>
+	template <union_index_t Index>
 	constexpr auto& get(){
 		if constexpr 		( Index < A::elem_size )
 			return a.template get<Index>();
@@ -136,7 +138,7 @@ union variant_union<false, A, B> {
 template <class A, class B>
 union variant_union<true, A, B> {
 	
-	static constexpr unsigned short elem_size = not( std::is_same_v<B, dummy_type> ) ? 2 : 1;
+	static constexpr union_index_t elem_size = not( std::is_same_v<B, dummy_type> ) ? 2 : 1;
 	
 	constexpr variant_union() = default;
 	
@@ -148,12 +150,13 @@ union variant_union<true, A, B> {
 	constexpr variant_union(in_place_index_t<1>, Args&&... args)
 	: b{static_cast<Args&&>(args)...} {}
 	
-	template <std::size_t Index>
+	template <union_index_t Index>
 	constexpr auto& get(){
 		if constexpr 		( Index == 0 )
 			return a;
 		else return b;
 	}
+
 	
 	A a;
 	B b;

@@ -43,15 +43,14 @@ struct bad_variant_access : std::exception {
 namespace vimpl {
 	#include "variant_detail.hpp"
 	#include "variant_visit.hpp"
+	struct variant_detector_t{};
 }
 
-struct variant_detector_t{};
-
 template <class T>
-inline constexpr bool is_variant = std::is_base_of_v<variant_detector_t, std::decay_t<T>>;
+inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_detector_t, std::decay_t<T>>;
 
 template <class... Ts>
-class variant : private variant_detector_t {
+class variant : private vimpl::variant_detector_t {
 	
 	static constexpr bool is_trivial 			= (std::is_trivial_v<Ts> && ...);
 	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);
@@ -86,7 +85,8 @@ class variant : private variant_detector_t {
 	constexpr variant() 
 		noexcept (std::is_nothrow_default_constructible_v<alternative<0>>)
 		requires std::is_default_constructible_v<alternative<0>> 
-	= default;
+	: storage{ in_place_index<0> }, current{0}
+	{}
 	
 	// copy constructor (trivial)
 	constexpr variant(const variant&)
@@ -256,17 +256,17 @@ class variant : private variant_detector_t {
 	// +================================== methods for internal use
 	// these methods performs no errors checking at all
 	
-	template <unsigned Idx>
+	template <vimpl::union_index_t Idx>
 	constexpr auto& get() & noexcept	{ 
 		return storage.impl.template get<Idx>(); 
 	}
 	
-	template <unsigned Idx>
+	template <vimpl::union_index_t Idx>
 	constexpr auto&& get() && noexcept { 
 		return std::move(storage.impl.template get<Idx>()); 
 	}
 	
-	template <unsigned Idx>
+	template <vimpl::union_index_t Idx>
 	constexpr const auto& get() const noexcept { 
 		return const_cast<variant&>(*this).get<Idx>();
 	}
@@ -313,7 +313,7 @@ constexpr auto& get (variant<Ts...>& v){
 
 template <std::size_t Idx, class... Ts>
 constexpr const auto& get (const variant<Ts...>& v){
-	return get<Idx>(const_cast<variant<Ts...>&>(v));
+	return swl::get<Idx>(const_cast<variant<Ts...>&>(v));
 }
 
 template <std::size_t Idx, class... Ts>
@@ -321,28 +321,57 @@ constexpr auto&& get (variant<Ts...>&& v){
 	return std::move( get<Idx>(v) );
 }
 
+template <std::size_t Idx, class... Ts>
+constexpr const auto&& get (const variant<Ts...>&& v){
+	return std::move( get<Idx>(v) );
+}
+
 // ========= get by type
 
 template <class T, class... Ts>
 constexpr T& get (variant<Ts...>& v){
-	return get<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get<vimpl::find_type<T, Ts...>()>(v);
 }
 
 template <class T, class... Ts>
 constexpr const T& get (const variant<Ts...>& v){
-	return get<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get<vimpl::find_type<T, Ts...>()>(v);
+}
+
+template <class T, class... Ts>
+constexpr T&& get (variant<Ts...>&& v){
+	return swl::get<vimpl::find_type<T, Ts...>()>(v);
+}
+
+template <class T, class... Ts>
+constexpr const T&& get (const variant<Ts...>&& v){
+	return swl::get<vimpl::find_type<T, Ts...>()>(v);
+}
+
+// ===== get_if by index
+
+template <std::size_t Idx, class... Ts>
+constexpr auto* get_if(variant<Ts...>* v) noexcept {
+	if (v == nullptr || v->index() != Idx) return decltype(&v->template get<Idx>()){nullptr};
+	else return &v->template get<Idx>();
 }
 
 template <std::size_t Idx, class... Ts>
-constexpr auto* get_if(variant<Ts...>& v){
-	if (v.index() == Idx) return &v.template get<Idx>();
-	else return nullptr;
+constexpr const auto* get_if(const variant<Ts...>* v) noexcept {
+	if (v == nullptr || v->index() != Idx) return decltype(&v->template get<Idx>()){nullptr};
+	else return &v->template get<Idx>();
 }
 
-template <std::size_t Idx, class... Ts>
-constexpr const auto* get_if(const variant<Ts...>& v){
-	if (v.index() == Idx) return &v.template get<Idx>();
-	else return nullptr;
+// ====== get_if by type 
+
+template <class T, class... Ts>
+constexpr T* get_if(variant<Ts...>* v) noexcept {
+	return swl::get_if<vimpl::find_type<T, Ts...>()>(v);
+}
+
+template <class T, class... Ts>
+constexpr const T* get_if(const variant<Ts...>* v) noexcept {
+	return swl::get_if<vimpl::find_type<T, Ts...>()>(v);
 }
 
 // =============================== visitation (20.7.7)
@@ -350,21 +379,16 @@ constexpr const auto* get_if(const variant<Ts...>& v){
 template <class Fn, class... Vs>
 	requires (is_variant<Vs> && ...)
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
+	if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
+			if ( (vars.valueless_by_exception() || ...) ) 
+				throw bad_variant_access{"swl::variant : Bad variant access in swl::visit."};
+				
 	if constexpr (sizeof...(Vs) == 1){
 		return [] (auto&& fn, auto&& head) { 
-			
-			if constexpr ( std::decay_t<decltype(head)>::can_be_valueless )
-				if (head.valueless_by_exception()) 
-					throw bad_variant_access{"swl::variant : Bad variant access in single swl::visit."};
-			
 			return decltype(head)(head).visit(static_cast<Fn&&>(fn));
 		} (static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
 	}
 	else {
-		if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
-			if ( (vars.valueless_by_exception() || ...) ) 
-				throw bad_variant_access{"swl::variant : Bad variant access in multi swl::visit."};
-		
 		using namespace vimpl;
 		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
 		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs)>::template with_table_size<max_size>;
