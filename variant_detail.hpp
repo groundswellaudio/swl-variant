@@ -243,5 +243,15 @@ using smallest_suitable_integer_type =
 					  Ts...
 					  >;
 					  
+
+#ifdef SWL_CPP_VARIANT_USE_STD_HASH
+  
+template <class T>
+inline constexpr bool has_std_hash = requires (T t) { 
+	std::size_t( ::std::hash<T>{}(t) ); 
+};
+
+#endif
+
 #endif
 					  

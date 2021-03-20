@@ -7,6 +7,19 @@
 #include <new>
 #include <limits>
 
+#ifdef SWL_CPP_VARIANT_USE_STD_HASH
+
+	// yeah, that's not great, but <functional> is an enormous header, so until modules are here...
+	#ifdef __GLIBCXX__
+		#include <bits/functional_hash.h>
+	#elif defined(_LIBCPP_VERSION)
+		// include nothing if libc++
+	#else 
+		#include <functional>
+	#endif
+
+#endif
+
 namespace swl {
 
 template <class T>
@@ -220,21 +233,41 @@ class variant : private variant_detector_t {
 		return current;
 	}
 	
+	// =================================== swap (20.7.3.7)
+	
+	void swap(variant& o) requires has_move_ctor {
+		if constexpr (can_be_valueless){
+			if (valueless_by_exception() && o.valueless_by_exception())
+				return;
+			}
+		
+		if (index() == o.index())
+			o.visit_with_index( [this] (auto& elem, auto index_) {
+				using std::swap;
+				swap(get<index_>(), elem);
+			});
+		else {
+			auto tmp = o;
+			o = std::move(*this);
+			(*this) = std::move(tmp);
+		}
+	}
+	
 	// +================================== methods for internal use
 	// these methods performs no errors checking at all
 	
 	template <unsigned Idx>
-	inline constexpr auto& get() & noexcept	{ 
+	constexpr auto& get() & noexcept	{ 
 		return storage.impl.template get<Idx>(); 
 	}
 	
 	template <unsigned Idx>
-	inline constexpr auto&& get() && noexcept { 
+	constexpr auto&& get() && noexcept { 
 		return std::move(storage.impl.template get<Idx>()); 
 	}
 	
 	template <unsigned Idx>
-	inline constexpr const auto& get() const noexcept { 
+	constexpr const auto& get() const noexcept { 
 		return const_cast<variant&>(*this).get<Idx>();
 	}
 	
@@ -315,6 +348,7 @@ constexpr const auto* get_if(const variant<Ts...>& v){
 // =============================== visitation (20.7.7)
 
 template <class Fn, class... Vs>
+	requires (is_variant<Vs> && ...)
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 	if constexpr (sizeof...(Vs) == 1){
 		return [] (auto&& fn, auto&& head) { 
@@ -340,6 +374,7 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 }
 
 template <class R, class Fn, class... Vs>
+	requires (is_variant<Vs> && ...)
 constexpr R visit(Fn&& fn, Vs&&... vars){
 	return visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
 }
@@ -406,6 +441,48 @@ constexpr bool operator>=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 	return v2 <= v1;
 }
 
+// ===================================== monostate (20.7.8, 20.7.9)
+
+struct monostate{};
+constexpr bool operator==(monostate, monostate) noexcept { return true; }
+constexpr bool operator> (monostate, monostate) noexcept { return false; }
+constexpr bool operator< (monostate, monostate) noexcept { return false; }
+constexpr bool operator<=(monostate, monostate) noexcept { return true; }
+constexpr bool operator>=(monostate, monostate) noexcept { return true; }
+
+// ===================================== specialized algorithms (20.7.10)
+
+template <class... Ts>
+void swap(variant<Ts...>& a, variant<Ts...>& b)
+	noexcept(noexcept(a.swap(b)))
+	requires requires { a.swap(b); }
+{
+	a.swap(b);
+}
+
 } // SWL
+
+#ifdef SWL_CPP_VARIANT_USE_STD_HASH
+
+// ====================================== hash support (20.7.12)
+
+namespace std {
+	template <class... Ts>
+		requires (::swl::vimpl::has_std_hash<Ts> && ...)
+	struct hash<::swl::variant<Ts...>> {
+		std::size_t operator()(const ::swl::variant<Ts...>& v) const {
+			return ::swl::visit(v, [] (auto& elem) {
+				return std::hash<std::decay_t<decltype(elem)>>{}(elem);
+			});
+		}
+	};
+
+	template <>
+	struct hash<::swl::monostate> {
+		constexpr std::size_t operator()(::swl::monostate) const noexcept { return 0; }
+	};
+}
+
+#endif // std-hash
 
 #endif

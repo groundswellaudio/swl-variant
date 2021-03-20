@@ -21,7 +21,8 @@ using rtype_visit = decltype( declval<Fn>()( declval<Vars>().template get<0>()..
 template <class Fn, class Var>
 using rtype_index_visit = decltype( declval<Fn>()( declval<Var>().template get<0>(), 
 								 	std::integral_constant<std::size_t, 0>{} ) );
-	
+
+// for simple visitation 
 template <std::size_t... Idx>
 struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
 	
@@ -44,57 +45,12 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
 	};
 };
 
-template <std::size_t N>
-constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[N]){
-	array_wrapper<unsigned[N]> res;
-	for (unsigned k = 1; k < N; ++k){
-		const auto prev = Idx;
-		Idx /= sizes[k];
-		res.data[N - k] = prev - Idx * sizes[k];
-	}
-	res.data[0] = Idx;
-	return res;
-}
-
 template <unsigned... Sizes>
 constexpr unsigned flatten_indices(const auto... args){	
 	unsigned res = 0;
 	([&] () { res *= Sizes; res += args; }(), ...);
 	return res;
 }
-
-namespace v1 {
-
-template <unsigned NumVariants, class Seq = std::make_integer_sequence<unsigned, NumVariants>>
-struct multi_dispatcher;
-
-template <unsigned NumVariants, unsigned... Vx>
-struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
-
-	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>
-	struct with_table_size;
-	
-	template <unsigned TableSize, unsigned... Idx>
-	struct with_table_size<TableSize, std::integer_sequence<unsigned, Idx...> > {
-		
-		template <class... Vars>
-		static constexpr unsigned var_sizes[sizeof...(Vars)] = {std::decay_t<Vars>::size...};
-		
-		template <unsigned Indice, class Fn, class... Vars>
-		static constexpr decltype(auto) func(Fn fn, Vars... vars) {
-			constexpr auto seq = unflatten<sizeof...(Vars)>(Indice, var_sizes<Vars...>);
-			return fn( get<seq.data[Vx]>(vars)... );
-		}
-		
-		template <class Fn, class... Vars>
-		static constexpr rtype_visit<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
-			func<Idx, Fn, Vars...>... 
-		};
-		
-	};
-};
-
-} // V1
 
 //  for visit of two variants of size 24 : clang ~1.2 sec, gcc ~4.45 sec
 
@@ -118,7 +74,6 @@ constexpr auto make_flat_sequence(){
 	constexpr unsigned num_dim = sizeof...(Sizes);
 	using walker_t = unsigned[sizeof...(Sizes)];
 	array_wrapper<walker_t[total_size]> res {{0}};
-	
 	
 	for (unsigned k = 0; k < total_size; k += num_dim){
 		increment<0, num_dim>(res.data[k], sizes);
