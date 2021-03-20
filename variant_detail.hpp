@@ -63,6 +63,10 @@ using best_overload_match
 	= typename decltype( make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}(std::declval<T>()) 
 					   )::type;
 
+template <class T, class... Ts>
+inline constexpr bool has_non_ambiguous_match 
+	= requires { make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}(declval<T>()); };
+
 // ================================== rel ops
 
 template <class T>
@@ -229,11 +233,6 @@ struct make_tree<1, 1, true> {
 template <class... Ts>
 using make_tree_union = typename 
 	make_tree<pick_next(sizeof...(Ts)), 1, true>::template f<sizeof...(Ts), Ts...>;
-
-
-template <class T, class... Ts>
-inline constexpr bool has_non_ambiguous_match 
-	= requires { make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}(declval<T>()); };
 
 // ============================================================
 

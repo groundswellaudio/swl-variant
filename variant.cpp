@@ -122,30 +122,27 @@ struct ctor_detect{
 };
 
 #include "variant.hpp"
+/* 
 #include <iostream>
-#include <variant>
+#include <variant> */ 
+
+//#include <variant>
 
 struct my_type{};
 
 int main(){
 	
-	//using namespace swl;
-	swl::variant<int, unsigned, float, char, my_type> vrx { 3 }, vrz;
+	using namespace swl;
+	variant<PACK> v1, v2, v3, v4, v5;
 	
-	bool b = vrx >= vrz;
 	
 	//visit( [] (auto x) { std::cout << x << std::endl;}, vrx );
 	
 	//show_type< swl::variant<int, float, char>::storage_t >();
 	
-	std::variant<PACK> vr1, vr2;
-	
-	vr1.emplace<0>(4);
-	vr2.emplace<0>(4);
-	
 	//std::cout << (vr1 == vr2) << std::endl;
 	
-	visit( [] (auto v) {}, vr1 );
+	visit( [] (auto... args) {}, v1, v2, v3, v4);
 	/* 
 	vrx.emplace<1>(2.33f);
 	

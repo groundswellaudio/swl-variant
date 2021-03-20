@@ -22,6 +22,7 @@ template <class T>
 inline static constexpr in_place_type_t<T> in_place_type;
 
 struct bad_variant_access : std::exception {
+	bad_variant_access(const char* msg) noexcept : message(msg) {}
 	const char* what() const noexcept override { return message; }
 	const char* message;
 };
@@ -50,13 +51,13 @@ class variant : private variant_detector_t {
 	static constexpr bool trivial_move_assign   = is_trivial || has_move_assign && (std::is_trivially_move_assignable_v<Ts> && ...);
 	static constexpr bool trivial_dtor 			= (std::is_trivially_destructible_v<Ts> && ...);
 	
-	template <std::size_t Idx>
-	using alternative = vimpl::type_pack_element<Idx, Ts...>;
-	
 	template <bool PassIndex = false>
 	using make_dispatcher_t = vimpl::make_dispatcher<std::make_index_sequence<sizeof...(Ts)>, PassIndex>;
 	
 	public : 
+	
+	template <std::size_t Idx>
+	using alternative = vimpl::type_pack_element<Idx, Ts...>;
 	
 	static constexpr bool can_be_valueless = is_trivial;
 	
@@ -326,8 +327,8 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 		} (static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
 	}
 	else {
-		if constexpr ( std::decay_t<Vs>::can_be_valueless || ... )
-			if ( vars.valueless_by_exception() || ... ) 
+		if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
+			if ( (vars.valueless_by_exception() || ...) ) 
 				throw bad_variant_access{"swl::variant : Bad variant access in multi swl::visit."};
 		
 		using namespace vimpl;
@@ -365,7 +366,7 @@ constexpr bool operator!=(const variant<Ts...>& v1, const variant<Ts...>& v2)
 template <class... Ts>
 	requires ( vimpl::has_lesser_comp<const Ts&> && ... )
 constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
-	if ( v1.index() == v2.index() )
+	if ( v1.index() == v2.index() ){
 		if constexpr (variant<Ts...>::can_be_valueless){
 			if (v2.valueless_by_exception()) return false;
 			if (v1.valueless_by_exception()) return true;
@@ -374,6 +375,7 @@ constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		{
 			return (elem < v2.template get<index>());
 		});
+	}
 	else
 		return (v1.index() < v2.index());
 }
@@ -386,7 +388,7 @@ constexpr bool operator>(const variant<Ts...>& v1, const variant<Ts...>& v2){
 template <class... Ts>
 	requires ( vimpl::has_lesser_than_comp<const Ts&> && ... )
 constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
-	if ( v1.index() == v2.index() )
+	if ( v1.index() == v2.index() ){
 		if constexpr (variant<Ts...>::can_be_valueless){
 			if (v2.valueless_by_exception()) return false;
 			if (v1.valueless_by_exception()) return true;
@@ -394,6 +396,7 @@ constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		return v1.visit_with_index( [&v2] (auto& elem, auto index) {
 			return (elem <= v2.template get<index>());
 		});
+	}
 	else
 		return (v1.index() < v2.index());
 }

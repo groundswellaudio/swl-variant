@@ -100,29 +100,30 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 
 inline namespace v2 {
 
-template <unsigned N, unsigned TotalSize>
-constexpr auto make_unflattened_indices(const unsigned(&strides)[N]){
-	array_wrapper<unsigned[TotalSize][N]> res;
-	
-	float walker[N - 1] {0};
-	const auto delta_walk = [&strides] () {
-		array_wrapper<float[N - 1]> res {{ 1.f / static_cast<float>(strides[N - 1]) }};
-		for (unsigned k = 0; k < N - 2; ++k)
-			res.data[N - k - 3] /= (static_cast<float>(strides[N - 1 - k]) * res.data[N - k - 2]);
-		return res;
-	}();
-	
-	unsigned walk_lsb = 0;
-	for (unsigned k = 0; k < TotalSize; ++k){
-		for (unsigned x = 0; x < N - 1; ++x){
-			res.data[k][x] = walker[x];
-			walker[x] += delta_walk.data[x];
-			if (static_cast<unsigned>(walker[x]) >= strides[x]) walker[x] = 0;
+template <unsigned char Idx, unsigned Max>
+constexpr void increment(auto& walker, const auto& sizes){
+	++walker[Idx];
+	if (walker[Idx] == sizes[Idx]){
+		if constexpr (Idx + 1 < Max){
+			walker[Idx] = 0;
+			return increment<Idx + 1, Max>(walker, sizes);
 		}
-		res.data[k][N - 1] = walk_lsb;
-		++walk_lsb;
-		if (walk_lsb >= strides[N - 1]) walk_lsb = 0;
 	}
+}
+
+template <unsigned... Sizes>
+constexpr auto make_flat_sequence(){
+	constexpr unsigned sizes[] = {Sizes...};
+	constexpr unsigned total_size = (Sizes * ...);
+	constexpr unsigned num_dim = sizeof...(Sizes);
+	using walker_t = unsigned[sizeof...(Sizes)];
+	array_wrapper<walker_t[total_size]> res {{0}};
+	
+	
+	for (unsigned k = 0; k < total_size; k += num_dim){
+		increment<0, num_dim>(res.data[k], sizes);
+	}
+	
 	return res;
 }
 
@@ -141,7 +142,7 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 		static constexpr unsigned var_sizes[sizeof...(VarSizes)] = {VarSizes...};
 		
 		static constexpr array_wrapper<unsigned[total_size][sizeof...(VarSizes)]> indices = 
-			make_unflattened_indices<sizeof...(VarSizes), total_size>(var_sizes);
+			make_flat_sequence<VarSizes...>();
 	};
 	
 	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>
