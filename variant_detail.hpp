@@ -43,10 +43,18 @@ using type_pack_element = typename find_type_i<(K != 0 and true_<Ts...>)>::templ
 
 // ============= overload match detector. to be used for variant generic assignment
 
+template <class T>
+void detect_non_narrowing__(T (&&arr)[1]);
+
+template <class Source, class Dest>
+inline constexpr bool non_narrowing_convertible = requires { detect_non_narrowing__<Dest>({std::declval<Source>()}); };
+
 template <std::size_t N, class A>
 struct overload_frag {
 	using type = A;
-	overload_frag<N, A> operator()(A a);
+	template <class T>
+		requires non_narrowing_convertible<T, A>
+	overload_frag<N, A> operator()(T);
 };
 
 template <class Seq, class... Args>
@@ -60,7 +68,7 @@ struct make_overload<std::integer_sequence<std::size_t, Idx...>, Args...>
 
 template <class T, class... Ts>
 using best_overload_match 
-	= typename decltype( make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}(std::declval<T>()) 
+	= typename decltype( make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}(declval<T>()) 
 					   )::type;
 
 template <class T, class... Ts>
@@ -69,14 +77,23 @@ inline constexpr bool has_non_ambiguous_match
 
 // ================================== rel ops
 
-template <class T>
-concept has_eq_comp = requires (T a, T b) { bool(a == b); };
+template <class From, class To>
+concept convertible = std::is_convertible_v<From, To>;
 
 template <class T>
-concept has_lesser_comp = requires (T a, T b) { bool(a < b); };
+concept has_eq_comp = requires (T a, T b) { 
+	{ a == b } -> convertible<bool>; 
+};
 
 template <class T>
-concept has_lesser_than_comp = requires (T a, T b) { bool(a <= b); };
+concept has_lesser_comp = requires (T a, T b) { 
+	{ a < b } -> convertible<bool>; 
+};
+
+template <class T>
+concept has_lesser_than_comp = requires (T a, T b) { 
+	{ a <= b } -> convertible<bool>;
+};
 
 template <class A>
 struct eq_comp {
@@ -156,7 +173,6 @@ union variant_union<true, A, B> {
 			return a;
 		else return b;
 	}
-
 	
 	A a;
 	B b;

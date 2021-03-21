@@ -70,7 +70,7 @@ constexpr void increment(auto& walker, const auto& sizes){
 template <unsigned... Sizes>
 constexpr auto make_flat_sequence(){
 	constexpr union_index_t sizes[] = {Sizes...};
-	constexpr union_index_t total_size = (Sizes * ...);
+	constexpr unsigned total_size = (Sizes * ...);
 	constexpr union_index_t num_dim = sizeof...(Sizes);
 	using walker_t = union_index_t[sizeof...(Sizes)];
 	array_wrapper<walker_t[total_size]> res {{0}};

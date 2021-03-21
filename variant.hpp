@@ -52,6 +52,11 @@ inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_detector_t, 
 template <class... Ts>
 class variant : private vimpl::variant_detector_t {
 	
+	static_assert( not (std::is_array_v<Ts> || ...), "A variant cannot contain a raw array type, consider using std::array instead." );
+	static_assert( sizeof...(Ts) > 0, "A variant cannot be empty.");
+	static_assert( not (std::is_reference_v<Ts> || ...), "A variant cannot contain references, consider using reference wrappers instead." );
+	static_assert( not (std::is_void_v<Ts> || ...), "A variant cannot contains void." );
+	
 	static constexpr bool is_trivial 			= (std::is_trivial_v<Ts> && ...);
 	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);
 	static constexpr bool trivial_move_ctor		= is_trivial || has_move_ctor && (std::is_trivially_move_constructible_v<Ts> && ...);
@@ -178,10 +183,11 @@ class variant : private vimpl::variant_detector_t {
 	{
 		o.visit_with_index( [this] (auto&& elem, auto index_cst) {
 			if (index() == index_cst)
-				get<index_cst>(*this) = std::move(elem);
+				this->get<index_cst>() = std::move(elem);
 			else 
-				emplace<index_cst>(std::move(elem));
+				this->emplace<index_cst>(std::move(elem));
 		});
+		return *this;
 	}
 	
 	// generic assignment 
@@ -192,7 +198,7 @@ class variant : private vimpl::variant_detector_t {
 		using related_type = best_overload_match<T, Ts...>;
 		constexpr auto new_index = find_type<related_type, Ts...>();
 		if (current == new_index)
-			get<new_index>(*this) = static_cast<T&&>(t);
+			get<new_index>() = static_cast<T&&>(t);
 		else 
 			emplace<new_index>(static_cast<T&&>(t));
 		return *this;
@@ -298,6 +304,7 @@ class variant : private vimpl::variant_detector_t {
 
 template <class T, class... Ts>
 constexpr bool holds_alternative(const variant<Ts...>& v) noexcept {
+	static_assert( (std::is_same_v<T, Ts> || ...), "Requested type is not contained in the variant" );
 	constexpr auto Index = vimpl::find_type<T, Ts...>();
 	return v.index() == Index;
 }
@@ -318,12 +325,12 @@ constexpr const auto& get (const variant<Ts...>& v){
 
 template <std::size_t Idx, class... Ts>
 constexpr auto&& get (variant<Ts...>&& v){
-	return std::move( get<Idx>(v) );
+	return std::move( swl::get<Idx>(v) );
 }
 
 template <std::size_t Idx, class... Ts>
 constexpr const auto&& get (const variant<Ts...>&& v){
-	return std::move( get<Idx>(v) );
+	return std::move( swl::get<Idx>(v) );
 }
 
 // ========= get by type
@@ -340,12 +347,12 @@ constexpr const T& get (const variant<Ts...>& v){
 
 template <class T, class... Ts>
 constexpr T&& get (variant<Ts...>&& v){
-	return swl::get<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get<vimpl::find_type<T, Ts...>()>( static_cast<variant<Ts...>&&>(v) );
 }
 
 template <class T, class... Ts>
 constexpr const T&& get (const variant<Ts...>&& v){
-	return swl::get<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get<vimpl::find_type<T, Ts...>()>(decltype(v)(v));
 }
 
 // ===== get_if by index
@@ -358,20 +365,20 @@ constexpr auto* get_if(variant<Ts...>* v) noexcept {
 
 template <std::size_t Idx, class... Ts>
 constexpr const auto* get_if(const variant<Ts...>* v) noexcept {
-	if (v == nullptr || v->index() != Idx) return decltype(&v->template get<Idx>()){nullptr};
-	else return &v->template get<Idx>();
+	return swl::get_if<Idx>(const_cast<variant<Ts...>*>(v));
 }
 
 // ====== get_if by type 
 
 template <class T, class... Ts>
 constexpr T* get_if(variant<Ts...>* v) noexcept {
+	static_assert( (std::is_same_v<T, Ts> || ...), "Requested type is not contained in the variant" );
 	return swl::get_if<vimpl::find_type<T, Ts...>()>(v);
 }
 
 template <class T, class... Ts>
 constexpr const T* get_if(const variant<Ts...>* v) noexcept {
-	return swl::get_if<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get_if<T>( const_cast<variant<Ts...>*>(v) );
 }
 
 // =============================== visitation (20.7.7)
@@ -381,7 +388,7 @@ template <class Fn, class... Vs>
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 	if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
 			if ( (vars.valueless_by_exception() || ...) ) 
-				throw bad_variant_access{"swl::variant : Bad variant access in swl::visit."};
+				throw bad_variant_access{"swl::variant : Bad variant access in visit."};
 				
 	if constexpr (sizeof...(Vs) == 1){
 		return [] (auto&& fn, auto&& head) { 
@@ -430,7 +437,7 @@ constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 			if (v2.valueless_by_exception()) return false;
 			if (v1.valueless_by_exception()) return true;
 		}
-		return v1.visit_with_index( [&v2] (auto& elem, auto index)
+		return v1.visit_with_index( [&v2] (auto& elem, auto index) -> bool 
 		{
 			return (elem < v2.template get<index>());
 		});
@@ -452,7 +459,7 @@ constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 			if (v2.valueless_by_exception()) return false;
 			if (v1.valueless_by_exception()) return true;
 		}
-		return v1.visit_with_index( [&v2] (auto& elem, auto index) {
+		return v1.visit_with_index( [&v2] (auto& elem, auto index) -> bool {
 			return (elem <= v2.template get<index>());
 		});
 	}

@@ -63,6 +63,10 @@ int main(){
 	
 	swl::variant<int> v;
 	
+	swl::variant<bool, int> c;
+	
+	c = "heheeehee";
+	
 	using namespace swl;
 	variant<PACK> v1, v2, v3, v4, v5;
 	
