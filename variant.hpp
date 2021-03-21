@@ -44,13 +44,32 @@ namespace vimpl {
 	#include "variant_detail.hpp"
 	#include "variant_visit.hpp"
 	struct variant_detector_t{};
+	
+	template <class T, bool Trivial = T::trivial_dtor>
+	struct dtor_frag{};
+	
+	template <class T>
+	struct dtor_frag<T, false> {
+		~dtor_frag(){
+			static_cast<T*>(this)->visit([] (auto& elem) {
+				using type = std::decay_t<decltype(elem)>;
+				if constexpr ( not std::is_trivially_destructible_v<type> )
+					elem.~type();
+			});
+		}
+	};
 }
 
 template <class T>
 inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_detector_t, std::decay_t<T>>;
 
 template <class... Ts>
-class variant : private vimpl::variant_detector_t {
+class variant : 
+	private vimpl::variant_detector_t, 
+	public  vimpl::dtor_frag<variant<Ts...>, (std::is_trivially_destructible_v<Ts> && ...)> 
+{
+	
+	public :
 	
 	static_assert( not (std::is_array_v<Ts> || ...), "A variant cannot contain a raw array type, consider using std::array instead." );
 	static_assert( sizeof...(Ts) > 0, "A variant cannot be empty.");
@@ -58,12 +77,12 @@ class variant : private vimpl::variant_detector_t {
 	static_assert( not (std::is_void_v<Ts> || ...), "A variant cannot contains void." );
 	
 	static constexpr bool is_trivial 			= (std::is_trivial_v<Ts> && ...);
-	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);
-	static constexpr bool trivial_move_ctor		= is_trivial || has_move_ctor && (std::is_trivially_move_constructible_v<Ts> && ...);
 	static constexpr bool has_copy_ctor			= (std::is_copy_constructible_v<Ts> && ...);
 	static constexpr bool trivial_copy_ctor 	= is_trivial || has_copy_ctor && (std::is_trivially_copy_constructible_v<Ts> && ...);
 	static constexpr bool has_copy_assign 		= (std::is_copy_constructible_v<Ts> && ...);
 	static constexpr bool trivial_copy_assign 	= is_trivial || has_copy_assign && (std::is_trivially_copy_assignable_v<Ts> && ...);
+	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);
+	static constexpr bool trivial_move_ctor		= is_trivial || has_move_ctor && (std::is_trivially_move_constructible_v<Ts> && ...);
 	static constexpr bool has_move_assign		= (std::is_move_assignable_v<Ts> && ...);
 	static constexpr bool trivial_move_assign   = is_trivial || has_move_assign && (std::is_trivially_move_assignable_v<Ts> && ...);
 	static constexpr bool trivial_dtor 			= (std::is_trivially_destructible_v<Ts> && ...);
@@ -71,7 +90,12 @@ class variant : private vimpl::variant_detector_t {
 	template <bool PassIndex = false>
 	using make_dispatcher_t = vimpl::make_dispatcher<std::make_index_sequence<sizeof...(Ts)>, PassIndex>;
 	
-	using storage_t = vimpl::variant_top_union<vimpl::make_tree_union<Ts...>>;
+	// this capture the traits above and pass it to the storage
+	using sfm_traits = vimpl::traits<UNION_SFM_TRAITS()>;
+	
+	#undef UNION_SFM_TRAITS
+	
+	using storage_t = vimpl::variant_top_union<sfm_traits, vimpl::make_tree_union<sfm_traits, Ts...>>;
 	
 	public : 
 	
@@ -143,15 +167,16 @@ class variant : private vimpl::variant_detector_t {
 	
 	// ================================ destructors (20.7.3.3)
 	
-	constexpr ~variant() requires trivial_dtor = default;
+	constexpr ~variant() = default;
 	
-	constexpr ~variant() requires (not trivial_dtor) {
+	/* 
+	constexpr ~variant() requires vimpl::dep_bool<int, not trivial_dtor> {
 		visit( [] (auto& elem) {
 			using type = std::decay_t<decltype(elem)>;
 			if constexpr ( not std::is_trivially_destructible_v<type> )
 				elem.~type();
 		});
-	}
+	} */ 
 	
 	// ================================ assignment (20.7.3.4)
 	

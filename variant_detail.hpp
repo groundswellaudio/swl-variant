@@ -113,22 +113,34 @@ struct emplace_into {
 struct dummy_type{}; // used to fill the back of union nodes
 
 using union_index_t = unsigned;
-
-/* 
-template <bool is_trivial>
-struct traits {
 	
-};
+#define UNION_SFM_TRAITS(X)  X has_copy_ctor, X trivial_copy_ctor, X has_copy_assign, X trivial_copy_assign, \
+							 X has_move_ctor, X trivial_move_ctor, X has_move_assign, X trivial_move_assign, \
+							 X trivial_dtor 
 
-template <>
-struct traits<true> // trivial {
-};  */ 
+template <class T, bool B>
+inline constexpr bool dep_bool = B;
 
-template <bool IsTerminal, class... Ts>
+template <UNION_SFM_TRAITS(bool)>
+struct traits{};
+
+#define INJECT_UNION_SFM_FRAG(X) \
+	constexpr X (const X &) 			requires dep_bool<A, trivial_copy_ctor> = default; \
+	constexpr X (const X &) 			requires dep_bool<A, has_copy_ctor and not trivial_copy_ctor> {} \
+	constexpr X (X &&) 					requires dep_bool<A, trivial_move_ctor> = default; \
+	constexpr X (X &&) 					requires dep_bool<A, has_move_ctor and not trivial_move_ctor> {} \
+	constexpr X & operator=(const X &) 	requires dep_bool<A, trivial_copy_assign> = default; \
+	constexpr X & operator=(const X &) 	requires dep_bool<A, has_copy_assign and not trivial_copy_assign> {} \
+	constexpr X & operator=(X &&) 		requires dep_bool<A, trivial_move_assign> = default; \
+	constexpr X & operator=(X &&) 		requires dep_bool<A, has_move_assign and not trivial_move_assign>{} \
+	constexpr ~ X () 					requires dep_bool<A, not trivial_dtor> {} \
+	constexpr ~ X () 					requires dep_bool<A, trivial_dtor> = default; 
+
+template <class Traits, bool IsTerminal, class... Ts>
 union variant_union;
 
-template <class A, class B>
-union variant_union<false, A, B> {
+template <UNION_SFM_TRAITS(bool), class A, class B>
+union variant_union< traits<UNION_SFM_TRAITS()>, false, A, B> {
 	
 	static constexpr auto elem_size = A::elem_size + B::elem_size;
 	
@@ -152,28 +164,14 @@ union variant_union<false, A, B> {
 			return b.template get<Index - A::elem_size>();
 	}
 	
-	constexpr variant_union(const variant_union&)
-		requires std::is_trivially_copyable_v<A> && std::is_trivially_copyable_v<B>
-	= default;
-	
-	constexpr variant_union(const variant_union&)
-		requires (not std::is_trivially_copyable_v<A> && std::is_trivially_copyable_v<B>)
-	{}
-	
-	constexpr ~variant_union()
-		requires std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>
-	= default;
-	
-	constexpr ~variant_union()
-		requires (not (std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>))
-	{}
+	INJECT_UNION_SFM_FRAG(variant_union)
 	
 	A a;
 	B b;
 };
 
-template <class A, class B>
-union variant_union<true, A, B> {
+template <UNION_SFM_TRAITS(bool), class A, class B>
+union variant_union<traits<UNION_SFM_TRAITS()>, true, A, B> {
 	
 	static constexpr union_index_t elem_size = not( std::is_same_v<B, dummy_type> ) ? 2 : 1;
 	
@@ -194,21 +192,7 @@ union variant_union<true, A, B> {
 		else return b;
 	}
 	
-	constexpr variant_union(const variant_union&)
-		requires std::is_trivially_copyable_v<A> && std::is_trivially_copyable_v<B>
-	= default;
-	
-	constexpr variant_union(const variant_union&)
-		requires (not std::is_trivially_copyable_v<A> && std::is_trivially_copyable_v<B>)
-	{}
-	
-	constexpr ~variant_union()
-		requires std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>
-	= default;
-	
-	constexpr ~variant_union()
-		requires (not (std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>))
-	{}
+	INJECT_UNION_SFM_FRAG(variant_union)
 	
 	A a;
 	B b;
@@ -216,8 +200,11 @@ union variant_union<true, A, B> {
 
 struct valueless_construct_t{};
 
-template <class Impl>
-union variant_top_union{
+template <class Traits, class Impl>
+union variant_top_union;
+
+template <UNION_SFM_TRAITS(bool), class A>
+union variant_top_union< traits<UNION_SFM_TRAITS()>, A> {
 
 	constexpr variant_top_union() = default;
 	constexpr variant_top_union(valueless_construct_t) : dummy{} {}
@@ -225,25 +212,13 @@ union variant_top_union{
 	template <class... Args>
 	constexpr variant_top_union(Args&&... args) : impl{static_cast<Args&&>(args)...} {}
 	
-	constexpr variant_top_union(const variant_top_union&)
-		requires std::is_trivially_copyable_v<Impl>
-	= default;
+	INJECT_UNION_SFM_FRAG(variant_top_union)
 	
-	constexpr variant_top_union(const variant_top_union&)
-		requires (not std::is_trivially_copyable_v<Impl>)
-	{}
-	
-	constexpr ~variant_top_union()
-		requires std::is_trivially_destructible_v<Impl>
-	= default;
-	
-	constexpr ~variant_top_union()
-		requires (not std::is_trivially_destructible_v<Impl>)
-	{}
-	
-	Impl impl;
+	A impl;
 	dummy_type dummy;
 };
+
+#undef INJECT_UNION_SFM_FRAG
 
 // =================== algorithm to build the tree of unions 
 // take a sequence of types and perform an order preserving fold until only one type is left
@@ -253,58 +228,60 @@ constexpr unsigned char pick_next(unsigned remaining){
 	return remaining >= 2 ? 2 : remaining;
 }
 
-template <unsigned char Pick, unsigned char GoOn = 1, bool FirstPass = false>
+template <unsigned char Pick, unsigned char GoOn, bool FirstPass, class Traits>
 struct make_tree;
 
-template <bool IsFirstPass>
-struct make_tree<2, 1, IsFirstPass> {
+template <bool IsFirstPass, class Traits>
+struct make_tree<2, 1, IsFirstPass, Traits> {
 	template <unsigned Remaining, class A, class B, class... Ts>
 	using f = typename make_tree<pick_next(Remaining - 2), 
 								 sizeof...(Ts) != 0,
-								 IsFirstPass
+								 IsFirstPass, 
+								 Traits
 								 >::template f< Remaining - 2, 
 								 				Ts..., 
-								 				variant_union<IsFirstPass, A, B>
+								 				variant_union<Traits, IsFirstPass, A, B>
 								 			  >; 
 };
 
 // only one type left, stop
-template <bool F>
-struct make_tree<0, 0, F> {
+template <bool F, class Traits>
+struct make_tree<0, 0, F, Traits> {
 	template <unsigned, class A>
 	using f = A;
 };
 
 // end of one pass, restart
-template <bool IsFirstPass>
-struct make_tree<0, 1, IsFirstPass> {
+template <bool IsFirstPass, class Traits>
+struct make_tree<0, 1, IsFirstPass, Traits> {
 	template <unsigned Remaining, class... Ts>
 	using f = typename make_tree<pick_next(sizeof...(Ts)), 
 								 (sizeof...(Ts) != 1), 
-								 false // <- both first pass and tail call recurse into a tail call
+								 false,  // <- both first pass and tail call recurse into a tail call
+								 Traits
 								>::template f<sizeof...(Ts), Ts...>;
 };
 
 // one odd type left in the pass, put it at the back to preserve the order
-template <>
-struct make_tree<1, 1, false> {
+template <class Traits>
+struct make_tree<1, 1, false, Traits> {
 	template <unsigned Remaining, class A, class... Ts>
-	using f = typename make_tree<0, sizeof...(Ts) != 0, false>::template f<0, Ts..., A>;
+	using f = typename make_tree<0, sizeof...(Ts) != 0, false, Traits>::template f<0, Ts..., A>;
 };
 
 // one odd type left in the first pass, wrap it in an union
-template <>
-struct make_tree<1, 1, true> {
+template <class Traits>
+struct make_tree<1, 1, true, Traits> {
 	template <unsigned, class A, class... Ts>
-	using f = typename make_tree<0, sizeof...(Ts) != 0, false>
+	using f = typename make_tree<0, sizeof...(Ts) != 0, false, Traits>
 		::template f<0, Ts..., 
-					 variant_union<true, A, dummy_type>
+					 variant_union<Traits, true, A, dummy_type>
 					>;
 };
 
-template <class... Ts>
+template <class Traits, class... Ts>
 using make_tree_union = typename 
-	make_tree<pick_next(sizeof...(Ts)), 1, true>::template f<sizeof...(Ts), Ts...>;
+	make_tree<pick_next(sizeof...(Ts)), 1, true, Traits>::template f<sizeof...(Ts), Ts...>;
 
 // ============================================================
 

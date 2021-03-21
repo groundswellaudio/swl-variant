@@ -57,7 +57,10 @@ struct ctor_detect{
 
 //#include <string>
 
-struct my_type{};
+struct my_type{
+	
+	~my_type(){ }
+};
 
 int main(){
 	
@@ -66,9 +69,11 @@ int main(){
 	//static_assert( not std::is_trivially_destructible_v<swl::variant<std::string, int>> );
 	static_assert( std::is_default_constructible_v<swl::variant<int>> );
 	
-	swl::variant<int> v;
+	//static_assert( swl::variant<my_type, int>::trivial_dtor );
 	
-	swl::variant<bool, int> c;
+	//swl::variant<int> v;
+	
+	swl::variant<int, my_type> vvv;
 	
 	//c = "heheeehee";
 	
@@ -82,6 +87,7 @@ int main(){
 	//std::cout << (vr1 == vr2) << std::endl;
 	
 	visit( [] (auto... args) {}, v1, v2, v3, v4);
+	
 	/* 
 	vrx.emplace<1>(2.33f);
 	
