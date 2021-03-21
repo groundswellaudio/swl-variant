@@ -9,6 +9,7 @@
 #ifndef SUPPORT_VARIANT_TEST_HELPERS_H
 #define SUPPORT_VARIANT_TEST_HELPERS_H
 
+
 #include <type_traits>
 #include <utility>
 #include <cassert>
@@ -76,7 +77,7 @@ int MakeEmptyT::alive = 0;
 
 template <class Variant>
 void makeEmpty(Variant& v) {
-    Variant v2(std::in_place_type<MakeEmptyT>);
+    Variant v2(swl::in_place_type<MakeEmptyT>);
     try {
         v = std::move(v2);
         assert(false);

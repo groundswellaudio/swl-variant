@@ -266,9 +266,12 @@ void test_copy_assignment_empty_empty() {
     using V = swl::variant<int, long, MET>;
     V v1(swl::in_place_index<0>);
     makeEmpty(v1);
+    std::cout << "1" << std::endl;
     V v2(swl::in_place_index<0>);
     makeEmpty(v2);
+    std::cout << "2" << std::endl;
     V &vref = (v1 = v2);
+    std::cout << "3" << std::endl;
     assert(&vref == &v1);
     assert(v1.valueless_by_exception());
     // assert(v1.index() == swl::variant<int, float>::npos);

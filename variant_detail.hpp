@@ -129,9 +129,9 @@ struct traits{};
 	constexpr X (const X &) 			requires (has_copy_ctor and not trivial_copy_ctor) {} \
 	constexpr X (X &&) 					requires trivial_move_ctor = default; \
 	constexpr X (X &&) 					requires (has_move_ctor and not trivial_move_ctor) {} \
-	constexpr X & operator=(const X &) 	requires trivial_copy_assign> = default; \
+	constexpr X & operator=(const X &) 	requires trivial_copy_assign = default; \
 	constexpr X & operator=(const X &) 	requires (has_copy_assign and not trivial_copy_assign) {} \
-	constexpr X & operator=(X &&) 		requires trivial_move_assign> = default; \
+	constexpr X & operator=(X &&) 		requires trivial_move_assign = default; \
 	constexpr X & operator=(X &&) 		requires (has_move_assign and not trivial_move_assign) {} \
 	constexpr ~ X () 					requires (not trivial_dtor) {} \
 	constexpr ~ X () 					requires trivial_dtor = default; 
