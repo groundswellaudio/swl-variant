@@ -44,20 +44,6 @@ namespace vimpl {
 	#include "variant_detail.hpp"
 	#include "variant_visit.hpp"
 	struct variant_detector_t{};
-	
-	template <class T, bool Trivial = T::trivial_dtor>
-	struct dtor_frag{};
-	
-	template <class T>
-	struct dtor_frag<T, false> {
-		~dtor_frag(){
-			static_cast<T*>(this)->visit([] (auto& elem) {
-				using type = std::decay_t<decltype(elem)>;
-				if constexpr ( not std::is_trivially_destructible_v<type> )
-					elem.~type();
-			});
-		}
-	};
 }
 
 template <class T>
@@ -129,6 +115,12 @@ class variant :
 	constexpr variant(const variant& o)
 		requires (has_copy_ctor and not trivial_copy_ctor)
 	: storage{ vimpl::valueless_construct_t{} } {
+		if constexpr (can_be_valueless){
+			if (o.index() == npos){
+				current = npos;
+				return;
+			}
+		}
 		o.visit_with_index( vimpl::emplace_into<variant&>{*this} );
 	}
 	
@@ -167,16 +159,11 @@ class variant :
 	
 	// ================================ destructors (20.7.3.3)
 	
-	constexpr ~variant() = default;
+	constexpr ~variant() requires trivial_dtor = default;
 	
-	/* 
-	constexpr ~variant() requires vimpl::dep_bool<int, not trivial_dtor> {
-		visit( [] (auto& elem) {
-			using type = std::decay_t<decltype(elem)>;
-			if constexpr ( not std::is_trivially_destructible_v<type> )
-				elem.~type();
-		});
-	} */ 
+	constexpr ~variant() requires (not trivial_dtor) {
+		reset();
+	}
 	
 	// ================================ assignment (20.7.3.4)
 	
@@ -186,9 +173,19 @@ class variant :
 	= default;
 	
 	// copy assignment 
-	constexpr variant& operator=(const variant& o)
+	constexpr variant& operator=(const variant& rhs)
 		requires (has_copy_assign and not(trivial_copy_assign && trivial_copy_ctor))
 	{	
+		if constexpr (can_be_valueless){
+			if (rhs.index() == npos){
+				if (current != npos){
+					reset();
+					current = npos;
+				}
+				return *this;
+			}
+		}
+		
 		o.visit_with_index( [this] (const auto& elem, auto index_cst) {
 			if (index() == index_cst)
 				this->get<index_cst>() = elem;
@@ -320,6 +317,16 @@ class variant :
 	}
 	
 	private : 
+	
+	void reset() {
+		if constexpr ( not trivial_dtor ){
+			visit( [] (auto& elem) {
+				using type = std::decay_t<decltype(elem)>;
+				if constexpr ( not std::is_trivially_destructible_v<type> )
+					elem.~type();
+			});
+		}
+	}
 	
 	storage_t storage;
 	index_type current;

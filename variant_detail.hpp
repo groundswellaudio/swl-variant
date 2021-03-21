@@ -125,16 +125,16 @@ template <UNION_SFM_TRAITS(bool)>
 struct traits{};
 
 #define INJECT_UNION_SFM_FRAG(X) \
-	constexpr X (const X &) 			requires dep_bool<A, trivial_copy_ctor> = default; \
-	constexpr X (const X &) 			requires dep_bool<A, has_copy_ctor and not trivial_copy_ctor> {} \
-	constexpr X (X &&) 					requires dep_bool<A, trivial_move_ctor> = default; \
-	constexpr X (X &&) 					requires dep_bool<A, has_move_ctor and not trivial_move_ctor> {} \
-	constexpr X & operator=(const X &) 	requires dep_bool<A, trivial_copy_assign> = default; \
-	constexpr X & operator=(const X &) 	requires dep_bool<A, has_copy_assign and not trivial_copy_assign> {} \
-	constexpr X & operator=(X &&) 		requires dep_bool<A, trivial_move_assign> = default; \
-	constexpr X & operator=(X &&) 		requires dep_bool<A, has_move_assign and not trivial_move_assign>{} \
-	constexpr ~ X () 					requires dep_bool<A, not trivial_dtor> {} \
-	constexpr ~ X () 					requires dep_bool<A, trivial_dtor> = default; 
+	constexpr X (const X &) 			requires trivial_copy_ctor = default; \
+	constexpr X (const X &) 			requires (has_copy_ctor and not trivial_copy_ctor) {} \
+	constexpr X (X &&) 					requires trivial_move_ctor = default; \
+	constexpr X (X &&) 					requires (has_move_ctor and not trivial_move_ctor) {} \
+	constexpr X & operator=(const X &) 	requires trivial_copy_assign> = default; \
+	constexpr X & operator=(const X &) 	requires (has_copy_assign and not trivial_copy_assign) {} \
+	constexpr X & operator=(X &&) 		requires trivial_move_assign> = default; \
+	constexpr X & operator=(X &&) 		requires (has_move_assign and not trivial_move_assign) {} \
+	constexpr ~ X () 					requires (not trivial_dtor) {} \
+	constexpr ~ X () 					requires trivial_dtor = default; 
 
 template <class Traits, bool IsTerminal, class... Ts>
 union variant_union;
