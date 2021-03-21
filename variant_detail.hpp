@@ -43,18 +43,12 @@ using type_pack_element = typename find_type_i<(K != 0 and true_<Ts...>)>::templ
 
 // ============= overload match detector. to be used for variant generic assignment
 
-template <class T>
-void detect_non_narrowing__(T (&&arr)[1]);
-
-template <class Source, class Dest>
-inline constexpr bool non_narrowing_convertible = requires { detect_non_narrowing__<Dest>({std::declval<Source>()}); };
-
+// for two given type S and D, we can detect whether or not S is convertible without narrowing
+// by checking if the initializer-list {declval<S>()} can bind to a rvalue ref of D[1]
 template <std::size_t N, class A>
 struct overload_frag {
 	using type = A;
-	template <class T>
-		requires non_narrowing_convertible<T, A>
-	overload_frag<N, A> operator()(T);
+	overload_frag<N, A> operator()( A(&&arr)[1] );
 };
 
 template <class Seq, class... Args>
@@ -68,12 +62,12 @@ struct make_overload<std::integer_sequence<std::size_t, Idx...>, Args...>
 
 template <class T, class... Ts>
 using best_overload_match 
-	= typename decltype( make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}(declval<T>()) 
+	= typename decltype( make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}( {declval<T>()} ) 
 					   )::type;
 
 template <class T, class... Ts>
 inline constexpr bool has_non_ambiguous_match 
-	= requires { make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}(declval<T>()); };
+	= requires { make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}( {declval<T>()} ); };
 
 // ================================== rel ops
 
@@ -120,6 +114,16 @@ struct dummy_type{}; // used to fill the back of union nodes
 
 using union_index_t = unsigned;
 
+/* 
+template <bool is_trivial>
+struct traits {
+	
+};
+
+template <>
+struct traits<true> // trivial {
+};  */ 
+
 template <bool IsTerminal, class... Ts>
 union variant_union;
 
@@ -147,6 +151,14 @@ union variant_union<false, A, B> {
 		else 
 			return b.template get<Index - A::elem_size>();
 	}
+	
+	constexpr variant_union(const variant_union&)
+		requires std::is_trivially_copyable_v<A> && std::is_trivially_copyable_v<B>
+	= default;
+	
+	constexpr variant_union(const variant_union&)
+		requires (not std::is_trivially_copyable_v<A> && std::is_trivially_copyable_v<B>)
+	{}
 	
 	constexpr ~variant_union()
 		requires std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>
@@ -182,6 +194,14 @@ union variant_union<true, A, B> {
 		else return b;
 	}
 	
+	constexpr variant_union(const variant_union&)
+		requires std::is_trivially_copyable_v<A> && std::is_trivially_copyable_v<B>
+	= default;
+	
+	constexpr variant_union(const variant_union&)
+		requires (not std::is_trivially_copyable_v<A> && std::is_trivially_copyable_v<B>)
+	{}
+	
 	constexpr ~variant_union()
 		requires std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>
 	= default;
@@ -204,6 +224,14 @@ union variant_top_union{
 	
 	template <class... Args>
 	constexpr variant_top_union(Args&&... args) : impl{static_cast<Args&&>(args)...} {}
+	
+	constexpr variant_top_union(const variant_top_union&)
+		requires std::is_trivially_copyable_v<Impl>
+	= default;
+	
+	constexpr variant_top_union(const variant_top_union&)
+		requires (not std::is_trivially_copyable_v<Impl>)
+	{}
 	
 	constexpr ~variant_top_union()
 		requires std::is_trivially_destructible_v<Impl>

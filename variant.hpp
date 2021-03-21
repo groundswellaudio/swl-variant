@@ -71,6 +71,8 @@ class variant : private vimpl::variant_detector_t {
 	template <bool PassIndex = false>
 	using make_dispatcher_t = vimpl::make_dispatcher<std::make_index_sequence<sizeof...(Ts)>, PassIndex>;
 	
+	using storage_t = vimpl::variant_top_union<vimpl::make_tree_union<Ts...>>;
+	
 	public : 
 	
 	template <std::size_t Idx>
@@ -292,9 +294,7 @@ class variant : private vimpl::variant_detector_t {
 		return make_dispatcher_t<true>::template dispatcher<VisitorType&&, const variant&>[current](decltype(fn)(fn), *this);
 	}
 	
-	private :
-	
-	using storage_t = vimpl::variant_top_union<vimpl::make_tree_union<Ts...>>;
+	private : 
 	
 	storage_t storage;
 	index_type current;

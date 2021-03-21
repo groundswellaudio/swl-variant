@@ -74,9 +74,10 @@ constexpr auto make_flat_sequence(){
 	constexpr union_index_t num_dim = sizeof...(Sizes);
 	using walker_t = union_index_t[sizeof...(Sizes)];
 	array_wrapper<walker_t[total_size]> res {{0}};
+	auto& tab = res.data;
 	
 	for (unsigned k = 0; k < total_size; k += num_dim){
-		increment<0, num_dim>(res.data[k], sizes);
+		increment<0, num_dim>(tab[k], sizes);
 	}
 	
 	return res;
