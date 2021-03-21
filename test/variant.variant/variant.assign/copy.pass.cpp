@@ -271,7 +271,7 @@ void test_copy_assignment_empty_empty() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.valueless_by_exception());
-    assert(v1.index() == swl::variant_npos);
+    assert(v1.index() == swl::variant<int, float>::npos);
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
@@ -287,7 +287,7 @@ void test_copy_assignment_non_empty_empty() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.valueless_by_exception());
-    assert(v1.index() == swl::variant_npos);
+    assert(v1.index() == swl::variant<int, float>::npos);
   }
   {
     using V = swl::variant<int, MET, std::string>;
@@ -297,7 +297,7 @@ void test_copy_assignment_non_empty_empty() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.valueless_by_exception());
-    assert(v1.index() == swl::variant_npos);
+    assert(v1.index() == swl::variant<int, float>::npos);
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
@@ -313,7 +313,7 @@ void test_copy_assignment_empty_non_empty() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 0);
-    assert(std::get<0>(v1) == 42);
+    assert(swl::get<0>(v1) == 42);
   }
   {
     using V = swl::variant<int, MET, std::string>;
@@ -323,7 +323,7 @@ void test_copy_assignment_empty_non_empty() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 2);
-    assert(std::get<2>(v1) == "hello");
+    assert(swl::get<2>(v1) == "hello");
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
@@ -338,7 +338,7 @@ void test_copy_assignment_same_index() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 0);
-    assert(std::get<0>(v1) == 42);
+    assert(swl::get<0>(v1) == 42);
   }
   {
     using V = swl::variant<int, long, unsigned>;
@@ -347,7 +347,7 @@ void test_copy_assignment_same_index() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 1);
-    assert(std::get<1>(v1) == 42);
+    assert(swl::get<1>(v1) == 42);
   }
   {
     using V = swl::variant<int, CopyAssign, unsigned>;
@@ -357,7 +357,7 @@ void test_copy_assignment_same_index() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 1);
-    assert(std::get<1>(v1).value == 42);
+    assert(swl::get<1>(v1).value == 42);
     assert(CopyAssign::copy_construct == 0);
     assert(CopyAssign::move_construct == 0);
     assert(CopyAssign::copy_assign == 1);
@@ -367,7 +367,7 @@ void test_copy_assignment_same_index() {
   {
     using V = swl::variant<int, MET, std::string>;
     V v1(swl::in_place_type<MET>);
-    MET &mref = std::get<1>(v1);
+    MET &mref = swl::get<1>(v1);
     V v2(swl::in_place_type<MET>);
     try {
       v1 = v2;
@@ -375,7 +375,7 @@ void test_copy_assignment_same_index() {
     } catch (...) {
     }
     assert(v1.index() == 1);
-    assert(&std::get<1>(v1) == &mref);
+    assert(&swl::get<1>(v1) == &mref);
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 
@@ -388,7 +388,7 @@ void test_copy_assignment_same_index() {
         V v(43);
         V v2(42);
         v = v2;
-        return {v.index(), std::get<0>(v)};
+        return {v.index(), swl::get<0>(v)};
       }
     } test;
     constexpr auto result = test();
@@ -402,7 +402,7 @@ void test_copy_assignment_same_index() {
         V v(43l);
         V v2(42l);
         v = v2;
-        return {v.index(), std::get<1>(v)};
+        return {v.index(), swl::get<1>(v)};
       }
     } test;
     constexpr auto result = test();
@@ -416,7 +416,7 @@ void test_copy_assignment_same_index() {
         V v(swl::in_place_type<TCopyAssign>, 43);
         V v2(swl::in_place_type<TCopyAssign>, 42);
         v = v2;
-        return {v.index(), std::get<1>(v).value};
+        return {v.index(), swl::get<1>(v).value};
       }
     } test;
     constexpr auto result = test();
@@ -430,7 +430,7 @@ void test_copy_assignment_same_index() {
         V v(swl::in_place_type<TCopyAssignNTMoveAssign>, 43);
         V v2(swl::in_place_type<TCopyAssignNTMoveAssign>, 42);
         v = v2;
-        return {v.index(), std::get<1>(v).value};
+        return {v.index(), swl::get<1>(v).value};
       }
     } test;
     constexpr auto result = test();
@@ -448,7 +448,7 @@ void test_copy_assignment_different_index() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 1);
-    assert(std::get<1>(v1) == 42);
+    assert(swl::get<1>(v1) == 42);
   }
   {
     using V = swl::variant<int, CopyAssign, unsigned>;
@@ -461,7 +461,7 @@ void test_copy_assignment_different_index() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 1);
-    assert(std::get<1>(v1).value == 42);
+    assert(swl::get<1>(v1).value == 42);
     assert(CopyAssign::alive == 2);
     assert(CopyAssign::copy_construct == 1);
     assert(CopyAssign::move_construct == 1);
@@ -510,9 +510,9 @@ void test_copy_assignment_different_index() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 2);
-    assert(std::get<2>(v1) == "hello");
+    assert(swl::get<2>(v1) == "hello");
     assert(v2.index() == 2);
-    assert(std::get<2>(v2) == "hello");
+    assert(swl::get<2>(v2) == "hello");
   }
   {
     using V = swl::variant<int, MoveThrows, std::string>;
@@ -521,9 +521,9 @@ void test_copy_assignment_different_index() {
     V &vref = (v1 = v2);
     assert(&vref == &v1);
     assert(v1.index() == 2);
-    assert(std::get<2>(v1) == "hello");
+    assert(swl::get<2>(v1) == "hello");
     assert(v2.index() == 2);
-    assert(std::get<2>(v2) == "hello");
+    assert(swl::get<2>(v2) == "hello");
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 
@@ -536,7 +536,7 @@ void test_copy_assignment_different_index() {
         V v(43);
         V v2(42l);
         v = v2;
-        return {v.index(), std::get<1>(v)};
+        return {v.index(), swl::get<1>(v)};
       }
     } test;
     constexpr auto result = test();
@@ -550,7 +550,7 @@ void test_copy_assignment_different_index() {
         V v(swl::in_place_type<unsigned>, 43u);
         V v2(swl::in_place_type<TCopyAssign>, 42);
         v = v2;
-        return {v.index(), std::get<1>(v).value};
+        return {v.index(), swl::get<1>(v).value};
       }
     } test;
     constexpr auto result = test();
@@ -568,7 +568,7 @@ constexpr bool test_constexpr_assign_imp(
       std::forward<ValueType>(new_value));
   v = cp;
   return v.index() == NewIdx &&
-        std::get<NewIdx>(v) == std::get<NewIdx>(cp);
+        swl::get<NewIdx>(v) == swl::get<NewIdx>(cp);
 }
 
 void test_constexpr_copy_assignment() {

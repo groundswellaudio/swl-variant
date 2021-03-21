@@ -148,6 +148,14 @@ union variant_union<false, A, B> {
 			return b.template get<Index - A::elem_size>();
 	}
 	
+	constexpr ~variant_union()
+		requires std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>
+	= default;
+	
+	constexpr ~variant_union()
+		requires (not (std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>))
+	{}
+	
 	A a;
 	B b;
 };
@@ -174,6 +182,14 @@ union variant_union<true, A, B> {
 		else return b;
 	}
 	
+	constexpr ~variant_union()
+		requires std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>
+	= default;
+	
+	constexpr ~variant_union()
+		requires (not (std::is_trivially_destructible_v<A> && std::is_trivially_destructible_v<B>))
+	{}
+	
 	A a;
 	B b;
 };
@@ -182,11 +198,20 @@ struct valueless_construct_t{};
 
 template <class Impl>
 union variant_top_union{
+
 	constexpr variant_top_union() = default;
 	constexpr variant_top_union(valueless_construct_t) : dummy{} {}
 	
 	template <class... Args>
 	constexpr variant_top_union(Args&&... args) : impl{static_cast<Args&&>(args)...} {}
+	
+	constexpr ~variant_top_union()
+		requires std::is_trivially_destructible_v<Impl>
+	= default;
+	
+	constexpr ~variant_top_union()
+		requires (not std::is_trivially_destructible_v<Impl>)
+	{}
 	
 	Impl impl;
 	dummy_type dummy;

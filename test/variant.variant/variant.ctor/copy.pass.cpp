@@ -150,27 +150,27 @@ void test_copy_ctor_basic() {
     swl::variant<int> v(swl::in_place_index<0>, 42);
     swl::variant<int> v2 = v;
     assert(v2.index() == 0);
-    assert(std::get<0>(v2) == 42);
+    assert(swl::get<0>(v2) == 42);
   }
   {
     swl::variant<int, long> v(swl::in_place_index<1>, 42);
     swl::variant<int, long> v2 = v;
     assert(v2.index() == 1);
-    assert(std::get<1>(v2) == 42);
+    assert(swl::get<1>(v2) == 42);
   }
   {
     swl::variant<NonT> v(swl::in_place_index<0>, 42);
     assert(v.index() == 0);
     swl::variant<NonT> v2(v);
     assert(v2.index() == 0);
-    assert(std::get<0>(v2).value == 42);
+    assert(swl::get<0>(v2).value == 42);
   }
   {
     swl::variant<int, NonT> v(swl::in_place_index<1>, 42);
     assert(v.index() == 1);
     swl::variant<int, NonT> v2(v);
     assert(v2.index() == 1);
-    assert(std::get<1>(v2).value == 42);
+    assert(swl::get<1>(v2).value == 42);
   }
 
   // Make sure we properly propagate triviality, which implies constexpr-ness (see P0602R4).
@@ -180,42 +180,42 @@ void test_copy_ctor_basic() {
     static_assert(v.index() == 0, "");
     constexpr swl::variant<int> v2 = v;
     static_assert(v2.index() == 0, "");
-    static_assert(std::get<0>(v2) == 42, "");
+    static_assert(swl::get<0>(v2) == 42, "");
   }
   {
     constexpr swl::variant<int, long> v(swl::in_place_index<1>, 42);
     static_assert(v.index() == 1, "");
     constexpr swl::variant<int, long> v2 = v;
     static_assert(v2.index() == 1, "");
-    static_assert(std::get<1>(v2) == 42, "");
+    static_assert(swl::get<1>(v2) == 42, "");
   }
   {
     constexpr swl::variant<TCopy> v(swl::in_place_index<0>, 42);
     static_assert(v.index() == 0, "");
     constexpr swl::variant<TCopy> v2(v);
     static_assert(v2.index() == 0, "");
-    static_assert(std::get<0>(v2).value == 42, "");
+    static_assert(swl::get<0>(v2).value == 42, "");
   }
   {
     constexpr swl::variant<int, TCopy> v(swl::in_place_index<1>, 42);
     static_assert(v.index() == 1, "");
     constexpr swl::variant<int, TCopy> v2(v);
     static_assert(v2.index() == 1, "");
-    static_assert(std::get<1>(v2).value == 42, "");
+    static_assert(swl::get<1>(v2).value == 42, "");
   }
   {
     constexpr swl::variant<TCopyNTMove> v(swl::in_place_index<0>, 42);
     static_assert(v.index() == 0, "");
     constexpr swl::variant<TCopyNTMove> v2(v);
     static_assert(v2.index() == 0, "");
-    static_assert(std::get<0>(v2).value == 42, "");
+    static_assert(swl::get<0>(v2).value == 42, "");
   }
   {
     constexpr swl::variant<int, TCopyNTMove> v(swl::in_place_index<1>, 42);
     static_assert(v.index() == 1, "");
     constexpr swl::variant<int, TCopyNTMove> v2(v);
     static_assert(v2.index() == 1, "");
-    static_assert(std::get<1>(v2).value == 42, "");
+    static_assert(swl::get<1>(v2).value == 42, "");
   }
 #endif // > C++17
 }
@@ -236,7 +236,7 @@ constexpr bool test_constexpr_copy_ctor_imp(swl::variant<long, void*, const int>
   auto v2 = v;
   return v2.index() == v.index() &&
          v2.index() == Idx &&
-         std::get<Idx>(v2) == std::get<Idx>(v);
+         swl::get<Idx>(v2) == swl::get<Idx>(v);
 }
 
 void test_constexpr_copy_ctor() {

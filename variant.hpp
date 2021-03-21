@@ -164,9 +164,9 @@ class variant : private vimpl::variant_detector_t {
 	{	
 		o.visit_with_index( [this] (const auto& elem, auto index_cst) {
 			if (index() == index_cst)
-				get<index_cst>(*this) = elem;
+				this->get<index_cst>() = elem;
 			else
-				emplace<index_cst>(elem);
+				this->emplace<index_cst>(elem);
 		});
 		return *this;
 	}

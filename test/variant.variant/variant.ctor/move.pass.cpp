@@ -174,43 +174,43 @@ void test_move_ctor_basic() {
     swl::variant<int> v(swl::in_place_index<0>, 42);
     swl::variant<int> v2 = std::move(v);
     assert(v2.index() == 0);
-    assert(std::get<0>(v2) == 42);
+    assert(swl::get<0>(v2) == 42);
   }
   {
     swl::variant<int, long> v(swl::in_place_index<1>, 42);
     swl::variant<int, long> v2 = std::move(v);
     assert(v2.index() == 1);
-    assert(std::get<1>(v2) == 42);
+    assert(swl::get<1>(v2) == 42);
   }
   {
     swl::variant<MoveOnly> v(swl::in_place_index<0>, 42);
     assert(v.index() == 0);
     swl::variant<MoveOnly> v2(std::move(v));
     assert(v2.index() == 0);
-    assert(std::get<0>(v2).value == 42);
+    assert(swl::get<0>(v2).value == 42);
   }
   {
     swl::variant<int, MoveOnly> v(swl::in_place_index<1>, 42);
     assert(v.index() == 1);
     swl::variant<int, MoveOnly> v2(std::move(v));
     assert(v2.index() == 1);
-    assert(std::get<1>(v2).value == 42);
+    assert(swl::get<1>(v2).value == 42);
   }
   {
     swl::variant<MoveOnlyNT> v(swl::in_place_index<0>, 42);
     assert(v.index() == 0);
     swl::variant<MoveOnlyNT> v2(std::move(v));
     assert(v2.index() == 0);
-    assert(std::get<0>(v).value == -1);
-    assert(std::get<0>(v2).value == 42);
+    assert(swl::get<0>(v).value == -1);
+    assert(swl::get<0>(v2).value == 42);
   }
   {
     swl::variant<int, MoveOnlyNT> v(swl::in_place_index<1>, 42);
     assert(v.index() == 1);
     swl::variant<int, MoveOnlyNT> v2(std::move(v));
     assert(v2.index() == 1);
-    assert(std::get<1>(v).value == -1);
-    assert(std::get<1>(v2).value == 42);
+    assert(swl::get<1>(v).value == -1);
+    assert(swl::get<1>(v2).value == 42);
   }
 
   // Make sure we properly propagate triviality, which implies constexpr-ness (see P0602R4).
@@ -220,7 +220,7 @@ void test_move_ctor_basic() {
       constexpr Result<int> operator()() const {
         swl::variant<int> v(swl::in_place_index<0>, 42);
         swl::variant<int> v2 = std::move(v);
-        return {v2.index(), std::get<0>(std::move(v2))};
+        return {v2.index(), swl::get<0>(std::move(v2))};
       }
     } test;
     constexpr auto result = test();
@@ -232,7 +232,7 @@ void test_move_ctor_basic() {
       constexpr Result<long> operator()() const {
         swl::variant<int, long> v(swl::in_place_index<1>, 42);
         swl::variant<int, long> v2 = std::move(v);
-        return {v2.index(), std::get<1>(std::move(v2))};
+        return {v2.index(), swl::get<1>(std::move(v2))};
       }
     } test;
     constexpr auto result = test();
@@ -244,7 +244,7 @@ void test_move_ctor_basic() {
       constexpr Result<TMove> operator()() const {
         swl::variant<TMove> v(swl::in_place_index<0>, 42);
         swl::variant<TMove> v2(std::move(v));
-        return {v2.index(), std::get<0>(std::move(v2))};
+        return {v2.index(), swl::get<0>(std::move(v2))};
       }
     } test;
     constexpr auto result = test();
@@ -256,7 +256,7 @@ void test_move_ctor_basic() {
       constexpr Result<TMove> operator()() const {
         swl::variant<int, TMove> v(swl::in_place_index<1>, 42);
         swl::variant<int, TMove> v2(std::move(v));
-        return {v2.index(), std::get<1>(std::move(v2))};
+        return {v2.index(), swl::get<1>(std::move(v2))};
       }
     } test;
     constexpr auto result = test();
@@ -268,7 +268,7 @@ void test_move_ctor_basic() {
       constexpr Result<TMoveNTCopy> operator()() const {
         swl::variant<TMoveNTCopy> v(swl::in_place_index<0>, 42);
         swl::variant<TMoveNTCopy> v2(std::move(v));
-        return {v2.index(), std::get<0>(std::move(v2))};
+        return {v2.index(), swl::get<0>(std::move(v2))};
       }
     } test;
     constexpr auto result = test();
@@ -280,7 +280,7 @@ void test_move_ctor_basic() {
       constexpr Result<TMoveNTCopy> operator()() const {
         swl::variant<int, TMoveNTCopy> v(swl::in_place_index<1>, 42);
         swl::variant<int, TMoveNTCopy> v2(std::move(v));
-        return {v2.index(), std::get<1>(std::move(v2))};
+        return {v2.index(), swl::get<1>(std::move(v2))};
       }
     } test;
     constexpr auto result = test();
@@ -306,7 +306,7 @@ constexpr bool test_constexpr_ctor_imp(swl::variant<long, void*, const int> cons
   auto v2 = std::move(copy);
   return v2.index() == v.index() &&
          v2.index() == Idx &&
-        std::get<Idx>(v2) == std::get<Idx>(v);
+        swl::get<Idx>(v2) == swl::get<Idx>(v);
 }
 
 void test_constexpr_move_ctor() {

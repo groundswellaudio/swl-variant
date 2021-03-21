@@ -93,12 +93,12 @@ void test_basic() {
     V v(42);
     auto& ref1 = v.emplace<0>();
     static_assert(std::is_same_v<int&, decltype(ref1)>, "");
-    assert(std::get<0>(v) == 0);
-    assert(&ref1 == &std::get<0>(v));
+    assert(swl::get<0>(v) == 0);
+    assert(&ref1 == &swl::get<0>(v));
     auto& ref2 = v.emplace<0>(42);
     static_assert(std::is_same_v<int&, decltype(ref2)>, "");
-    assert(std::get<0>(v) == 42);
-    assert(&ref2 == &std::get<0>(v));
+    assert(swl::get<0>(v) == 42);
+    assert(&ref2 == &swl::get<0>(v));
   }
   {
     using V =
@@ -108,17 +108,17 @@ void test_basic() {
     // default emplace a value
     auto& ref1 = v.emplace<1>();
     static_assert(std::is_same_v<long&, decltype(ref1)>, "");
-    assert(std::get<1>(v) == 0);
-    assert(&ref1 == &std::get<1>(v));
+    assert(swl::get<1>(v) == 0);
+    assert(&ref1 == &swl::get<1>(v));
     auto& ref2 = v.emplace<2>(&x);
     static_assert(std::is_same_v<const void*&, decltype(ref2)>, "");
-    assert(std::get<2>(v) == &x);
-    assert(&ref2 == &std::get<2>(v));
+    assert(swl::get<2>(v) == &x);
+    assert(&ref2 == &swl::get<2>(v));
     // emplace with multiple args
     auto& ref3 = v.emplace<4>(3u, 'a');
     static_assert(std::is_same_v<std::string&, decltype(ref3)>, "");
-    assert(std::get<4>(v) == "aaa");
-    assert(&ref3 == &std::get<4>(v));
+    assert(swl::get<4>(v) == "aaa");
+    assert(&ref3 == &swl::get<4>(v));
   }
 #if !defined(TEST_VARIANT_HAS_NO_REFERENCES)
   {
@@ -131,28 +131,28 @@ void test_basic() {
     // default emplace a value
     auto& ref1 = v.emplace<1>();
     static_assert(std::is_same_v<long&, decltype(ref1)>, "");
-    assert(std::get<1>(v) == 0);
-    assert(&ref1 == &std::get<1>(v));
+    assert(swl::get<1>(v) == 0);
+    assert(&ref1 == &swl::get<1>(v));
     // emplace a reference
     auto& ref2 = v.emplace<2>(x);
     static_assert(std::is_same_v<&, decltype(ref)>, "");
-    assert(&std::get<2>(v) == &x);
-    assert(&ref2 == &std::get<2>(v));
+    assert(&swl::get<2>(v) == &x);
+    assert(&ref2 == &swl::get<2>(v));
     // emplace an rvalue reference
     auto& ref3 = v.emplace<3>(std::move(y));
     static_assert(std::is_same_v<&, decltype(ref)>, "");
-    assert(&std::get<3>(v) == &y);
-    assert(&ref3 == &std::get<3>(v));
+    assert(&swl::get<3>(v) == &y);
+    assert(&ref3 == &swl::get<3>(v));
     // re-emplace a new reference over the active member
     auto& ref4 = v.emplace<3>(std::move(z));
     static_assert(std::is_same_v<&, decltype(ref)>, "");
-    assert(&std::get<3>(v) == &z);
-    assert(&ref4 == &std::get<3>(v));
+    assert(&swl::get<3>(v) == &z);
+    assert(&ref4 == &swl::get<3>(v));
     // emplace with multiple args
     auto& ref5 = v.emplace<5>(3u, 'a');
     static_assert(std::is_same_v<std::string&, decltype(ref5)>, "");
-    assert(std::get<5>(v) == "aaa");
-    assert(&ref5 == &std::get<5>(v));
+    assert(swl::get<5>(v) == "aaa");
+    assert(&ref5 == &swl::get<5>(v));
   }
 #endif
 }

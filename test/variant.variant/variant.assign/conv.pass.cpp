@@ -35,8 +35,9 @@ int main(int, char**)
   static_assert(!std::is_assignable<swl::variant<int, bool>, decltype("meow")>::value, "");
   static_assert(!std::is_assignable<swl::variant<int, const bool>, decltype("meow")>::value, "");
   static_assert(!std::is_assignable<swl::variant<int, const volatile bool>, decltype("meow")>::value, "");
-
-  static_assert(!std::is_assignable<swl::variant<bool>, std::true_type>::value, "");
+  
+  // libc++ implementation completely forbids any implicit conversion to bool, not swl::variant
+  // static_assert(!std::is_assignable<swl::variant<bool>, std::true_type>::value, ""); 
   static_assert(!std::is_assignable<swl::variant<bool>, std::unique_ptr<char> >::value, "");
   static_assert(!std::is_assignable<swl::variant<bool>, decltype(nullptr)>::value, "");
 

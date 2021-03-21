@@ -125,34 +125,34 @@ void test_T_ctor_basic() {
   {
     constexpr swl::variant<int> v(42);
     static_assert(v.index() == 0, "");
-    static_assert(std::get<0>(v) == 42, "");
+    static_assert(swl::get<0>(v) == 42, "");
   }
   {
     constexpr swl::variant<int, long> v(42l);
     static_assert(v.index() == 1, "");
-    static_assert(std::get<1>(v) == 42, "");
+    static_assert(swl::get<1>(v) == 42, "");
   }
 #ifndef TEST_VARIANT_ALLOWS_NARROWING_CONVERSIONS
   {
     constexpr swl::variant<unsigned, long> v(42);
     static_assert(v.index() == 1, "");
-    static_assert(std::get<1>(v) == 42, "");
+    static_assert(swl::get<1>(v) == 42, "");
   }
 #endif
   {
     swl::variant<std::string, bool const> v = "foo";
     assert(v.index() == 0);
-    assert(std::get<0>(v) == "foo");
+    assert(swl::get<0>(v) == "foo");
   }
   {
     swl::variant<bool volatile, std::unique_ptr<int>> v = nullptr;
     assert(v.index() == 1);
-    assert(std::get<1>(v) == nullptr);
+    assert(swl::get<1>(v) == nullptr);
   }
   {
     swl::variant<bool volatile const, int> v = true;
     assert(v.index() == 0);
-    assert(std::get<0>(v));
+    assert(swl::get<0>(v));
   }
   {
     swl::variant<RValueConvertibleFrom<int>> v1 = 42;
@@ -169,7 +169,7 @@ void test_T_ctor_basic() {
     int x = 42;
     V v(x);
     assert(v.index() == 0);
-    assert(&std::get<0>(v) == &x);
+    assert(&swl::get<0>(v) == &x);
   }
   {
     using V = swl::variant<const int &, int &&, long>;
@@ -177,7 +177,7 @@ void test_T_ctor_basic() {
     int x = 42;
     V v(std::move(x));
     assert(v.index() == 1);
-    assert(&std::get<1>(v) == &x);
+    assert(&swl::get<1>(v) == &x);
   }
 #endif
 }
@@ -191,7 +191,7 @@ void test_no_narrowing_check_for_class_types() {
   using V = swl::variant<int, BoomOnAnything>;
   V v(42);
   assert(v.index() == 0);
-  assert(std::get<0>(v) == 42);
+  assert(swl::get<0>(v) == 42);
 }
 
 struct Bar {};

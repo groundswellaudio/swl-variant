@@ -55,17 +55,22 @@ struct ctor_detect{
 
 //#include <variant>
 
+//#include <string>
+
 struct my_type{};
 
 int main(){
 	
+	//swl::variant<int, std::string> vst { swl::in_place_index<1>, "hehehe" };
+	
+	//static_assert( not std::is_trivially_destructible_v<swl::variant<std::string, int>> );
 	static_assert( std::is_default_constructible_v<swl::variant<int>> );
 	
 	swl::variant<int> v;
 	
 	swl::variant<bool, int> c;
 	
-	c = "heheeehee";
+	//c = "heheeehee";
 	
 	using namespace swl;
 	variant<PACK> v1, v2, v3, v4, v5;

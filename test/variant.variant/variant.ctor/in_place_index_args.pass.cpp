@@ -67,38 +67,38 @@ void test_ctor_basic() {
   {
     constexpr swl::variant<int> v(swl::in_place_index<0>, 42);
     static_assert(v.index() == 0, "");
-    static_assert(std::get<0>(v) == 42, "");
+    static_assert(swl::get<0>(v) == 42, "");
   }
   {
     constexpr swl::variant<int, long, long> v(swl::in_place_index<1>, 42);
     static_assert(v.index() == 1, "");
-    static_assert(std::get<1>(v) == 42, "");
+    static_assert(swl::get<1>(v) == 42, "");
   }
   {
     constexpr swl::variant<int, const int, long> v(swl::in_place_index<1>, 42);
     static_assert(v.index() == 1, "");
-    static_assert(std::get<1>(v) == 42, "");
+    static_assert(swl::get<1>(v) == 42, "");
   }
   {
     using V = swl::variant<const int, volatile int, int>;
     int x = 42;
     V v(swl::in_place_index<0>, x);
     assert(v.index() == 0);
-    assert(std::get<0>(v) == x);
+    assert(swl::get<0>(v) == x);
   }
   {
     using V = swl::variant<const int, volatile int, int>;
     int x = 42;
     V v(swl::in_place_index<1>, x);
     assert(v.index() == 1);
-    assert(std::get<1>(v) == x);
+    assert(swl::get<1>(v) == x);
   }
   {
     using V = swl::variant<const int, volatile int, int>;
     int x = 42;
     V v(swl::in_place_index<2>, x);
     assert(v.index() == 2);
-    assert(std::get<2>(v) == x);
+    assert(swl::get<2>(v) == x);
   }
 }
 

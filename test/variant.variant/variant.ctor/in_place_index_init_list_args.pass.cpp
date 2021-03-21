@@ -91,20 +91,20 @@ void test_ctor_basic() {
     constexpr swl::variant<InitList, InitListArg, InitList> v(
         swl::in_place_index<0>, {1, 2, 3});
     static_assert(v.index() == 0, "");
-    static_assert(std::get<0>(v).size == 3, "");
+    static_assert(swl::get<0>(v).size == 3, "");
   }
   {
     constexpr swl::variant<InitList, InitListArg, InitList> v(
         swl::in_place_index<2>, {1, 2, 3});
     static_assert(v.index() == 2, "");
-    static_assert(std::get<2>(v).size == 3, "");
+    static_assert(swl::get<2>(v).size == 3, "");
   }
   {
     constexpr swl::variant<InitList, InitListArg, InitListArg> v(
         swl::in_place_index<1>, {1, 2, 3, 4}, 42);
     static_assert(v.index() == 1, "");
-    static_assert(std::get<1>(v).size == 4, "");
-    static_assert(std::get<1>(v).value == 42, "");
+    static_assert(swl::get<1>(v).size == 4, "");
+    static_assert(swl::get<1>(v).value == 42, "");
   }
 }
 

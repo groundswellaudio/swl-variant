@@ -77,17 +77,17 @@ void test_basic() {
   V v;
   auto& ref1 = v.emplace<1>({1, 2, 3});
   static_assert(std::is_same_v<InitList&, decltype(ref1)>, "");
-  assert(std::get<1>(v).size == 3);
-  assert(&ref1 == &std::get<1>(v));
+  assert(swl::get<1>(v).size == 3);
+  assert(&ref1 == &swl::get<1>(v));
   auto& ref2 = v.emplace<2>({1, 2, 3, 4}, 42);
   static_assert(std::is_same_v<InitListArg&, decltype(ref2)>, "");
-  assert(std::get<2>(v).size == 4);
-  assert(std::get<2>(v).value == 42);
-  assert(&ref2 == &std::get<2>(v));
+  assert(swl::get<2>(v).size == 4);
+  assert(swl::get<2>(v).value == 42);
+  assert(&ref2 == &swl::get<2>(v));
   auto& ref3 = v.emplace<1>({1});
   static_assert(std::is_same_v<InitList&, decltype(ref3)>, "");
-  assert(std::get<1>(v).size == 1);
-  assert(&ref3 == &std::get<1>(v));
+  assert(swl::get<1>(v).size == 1);
+  assert(&ref3 == &swl::get<1>(v));
 }
 
 int main(int, char**) {

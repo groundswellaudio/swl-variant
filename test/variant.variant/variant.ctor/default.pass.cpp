@@ -88,35 +88,35 @@ void test_default_ctor_basic() {
   {
     swl::variant<int> v;
     assert(v.index() == 0);
-    assert(std::get<0>(v) == 0);
+    assert(swl::get<0>(v) == 0);
   }
   {
     swl::variant<int, long> v;
     assert(v.index() == 0);
-    assert(std::get<0>(v) == 0);
+    assert(swl::get<0>(v) == 0);
   }
   {
     swl::variant<int, NonDefaultConstructible> v;
     assert(v.index() == 0);
-    assert(std::get<0>(v) == 0);
+    assert(swl::get<0>(v) == 0);
   }
   {
     using V = swl::variant<int, long>;
     constexpr V v;
     static_assert(v.index() == 0, "");
-    static_assert(std::get<0>(v) == 0, "");
+    static_assert(swl::get<0>(v) == 0, "");
   }
   {
     using V = swl::variant<int, long>;
     constexpr V v;
     static_assert(v.index() == 0, "");
-    static_assert(std::get<0>(v) == 0, "");
+    static_assert(swl::get<0>(v) == 0, "");
   }
   {
     using V = swl::variant<int, NonDefaultConstructible>;
     constexpr V v;
     static_assert(v.index() == 0, "");
-    static_assert(std::get<0>(v) == 0, "");
+    static_assert(swl::get<0>(v) == 0, "");
   }
 }
 
