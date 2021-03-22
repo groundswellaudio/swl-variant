@@ -20,7 +20,7 @@
 
 #endif
 
-#define SWL_VARIANT_DEBUG
+//#define SWL_VARIANT_DEBUG
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
@@ -145,7 +145,7 @@ class variant : private vimpl::variant_detector_t {
 	
 	// generic constructor
 	template <class T, class M = vimpl::best_overload_match<T&&, Ts...>>
-		requires ( !std::is_same_v<std::decay_t<T>, variant> && vimpl::has_non_ambiguous_match<T, Ts...> )
+		requires ( !std::is_same_v<std::decay_t<T>, variant> )
 	constexpr variant(T&& t) 
 		noexcept ( std::is_nothrow_constructible_v<M, T&&> )
 	: variant{ in_place_index< vimpl::find_type<M, Ts... >() >, static_cast<T&&>(t) }
@@ -241,10 +241,11 @@ class variant : private vimpl::variant_detector_t {
 	}
 	
 	// generic assignment 
-	template <class T, class A = vimpl::best_overload_match<T, Ts...>>
-		//requires vimpl::has_non_ambiguous_match<T, Ts...>
+	template <class T>
+		requires vimpl::has_non_ambiguous_match<T, Ts...>
 	constexpr variant& operator=(T&& t) 
-		noexcept( std::is_nothrow_assignable_v<A, T&&> && std::is_nothrow_constructible_v<A, T&&> )
+		noexcept( std::is_nothrow_assignable_v<vimpl::best_overload_match<T&&, Ts...>, T&&> 
+				  && std::is_nothrow_constructible_v<vimpl::best_overload_match<T&&, Ts...>, T&&> )
 	{
 		using namespace vimpl;
 		using related_type = best_overload_match<T, Ts...>;
@@ -252,7 +253,7 @@ class variant : private vimpl::variant_detector_t {
 		if (current == new_index)
 			get<new_index>() = static_cast<T&&>(t);
 		else 
-			emplace<new_index>(static_cast<T&&>(t));
+			(void) emplace<new_index>(static_cast<T&&>(t));
 		return *this;
 	}
 	
@@ -264,7 +265,7 @@ class variant : private vimpl::variant_detector_t {
 			"Variant emplace : the type to be emplaced must appear exactly once." ); 
 		
 		constexpr auto Index = vimpl::find_type<T, Ts...>();	
-		emplace<Index>(static_cast<Args&&>(args)...);
+		(void) emplace<Index>(static_cast<Args&&>(args)...);
 		return get<Index>();
 	}
 	
@@ -277,7 +278,8 @@ class variant : private vimpl::variant_detector_t {
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
 			current = npos;
 		
-		new(static_cast<void*>(&get<Idx>())) T (static_cast<Args&&>(args)...);
+		//new(static_cast<void*>(&get<Idx>())) T (static_cast<Args&&>(args)...);
+		new( (void*)(&get<Idx>()) ) T (static_cast<Args&&>(args)...);
 		current = static_cast<index_type>(Idx);
 		return get<Idx>();
 	}
@@ -356,6 +358,7 @@ class variant : private vimpl::variant_detector_t {
 	}
 	
 	private : 
+	
 	
 	void reset() {
 		if constexpr (can_be_valueless)

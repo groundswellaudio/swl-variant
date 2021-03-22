@@ -70,8 +70,8 @@ int main(){
 	//static_assert( not std::is_trivially_destructible_v<swl::variant<std::string, int>> );
 	static_assert( std::is_default_constructible_v<swl::variant<int>> );
 	
-	swl::variant<unsigned, long> vvv;
-	vvv = 42;
+	swl::variant<int, long> vvz;
+	//vvz = "hello";
 	//static_assert( swl::variant<my_type, int>::trivial_dtor );
 	
 	//swl::variant<int> v;

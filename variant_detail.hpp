@@ -43,13 +43,19 @@ using type_pack_element = typename find_type_i<(K != 0 and true_<Ts...>)>::templ
 
 // ============= overload match detector. to be used for variant generic assignment
 
-// for two given type S and D, we can detect whether or not S is convertible without narrowing
-// by checking if the initializer-list {declval<S>()} can bind to a rvalue ref of D[1]
+template <class Dest>
+void check_no_narrowing(Dest(&&)[1]);
+
+template <class T>
+using arr1 = T[1];
+
 template <std::size_t N, class A>
 struct overload_frag {
 	using type = A;
-	overload_frag<N, A> operator()( A(&&arr)[1] );
-};
+    template <class T>
+        requires requires { arr1<A>{std::declval<T>()}; }
+	auto operator()(A, T&&) -> overload_frag<N, A>;
+}; 
 
 template <class Seq, class... Args>
 struct make_overload;
@@ -60,14 +66,25 @@ struct make_overload<std::integer_sequence<std::size_t, Idx...>, Args...>
 	using overload_frag<Idx, Args>::operator()...;
 };
 
+#define find_best_overload(T, Pack) make_overload<std::make_index_sequence<sizeof...(Pack)>, Pack ...>{}( declval<T>(), declval<T>() ) 
+
+/* 
 template <class T, class... Ts>
 using best_overload_match 
-	= typename decltype( make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}( {declval<T>()} ) 
-					   )::type;
+	= typename decltype( make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}( declval<T>(), declval<T>() ) 
+					   )::type; */ 
+					   
+template <class T, class... Ts>
+using best_overload_match = typename decltype( find_best_overload(T, Ts) )::type;
 
+/* 
 template <class T, class... Ts>
 inline constexpr bool has_non_ambiguous_match 
-	= requires { make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}( {declval<T>()} ); };
+	= requires { make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}( declval<T>(), declval<T>() ); };  */ 
+	
+template <class T, class... Ts>
+concept has_non_ambiguous_match = 
+	requires { typename best_overload_match<T, Ts...>; };
 
 // ================================== rel ops
 
@@ -117,9 +134,6 @@ using union_index_t = unsigned;
 #define UNION_SFM_TRAITS(X)  X has_copy_ctor, X trivial_copy_ctor, X has_copy_assign, X trivial_copy_assign, \
 							 X has_move_ctor, X trivial_move_ctor, X has_move_assign, X trivial_move_assign, \
 							 X trivial_dtor 
-
-template <class T, bool B>
-inline constexpr bool dep_bool = B;
 
 template <UNION_SFM_TRAITS(bool)>
 struct traits{};
