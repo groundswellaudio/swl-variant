@@ -20,7 +20,7 @@
 
 #endif
 
-#define SWL_VARIANT_DEBUG
+//#define SWL_VARIANT_DEBUG
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
@@ -61,6 +61,13 @@ namespace vimpl {
 
 template <class T>
 inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_tag, std::decay_t<T>>;
+
+struct variant_npos_t {
+	template <class T>
+	constexpr bool operator==(T idx) const noexcept { return idx == std::numeric_limits<T>::max(); }
+};
+
+inline static constexpr variant_npos_t variant_npos;
 
 template <class... Ts>
 class variant : private vimpl::variant_tag {
@@ -280,6 +287,7 @@ class variant : private vimpl::variant_tag {
 	// ================================== modifiers (20.7.3.5)
 	
 	template <class T, class... Args>
+		requires std::is_constructible_v<T, Args&&...>
 	T& emplace(Args&&... args){
 		static_assert( vimpl::appears_exactly_once<T, Ts...>,  
 			"Variant emplace : the type to be emplaced must appear exactly once." ); 
@@ -290,6 +298,7 @@ class variant : private vimpl::variant_tag {
 	}
 	
 	template <std::size_t Idx, class... Args>
+		requires (Idx < size and std::is_constructible_v<alternative<Idx>, Args&&...>)
 	auto& emplace(Args&&... args){
 		using T = std::remove_reference_t<decltype(get<Idx>())>;
 		
@@ -312,7 +321,7 @@ class variant : private vimpl::variant_tag {
 		else return false;
 	}
 	
-	constexpr std::size_t index() const noexcept {
+	constexpr index_type index() const noexcept {
 		return current;
 	}
 	
@@ -342,27 +351,57 @@ class variant : private vimpl::variant_tag {
 	// these methods performs no errors checking at all
 	
 	template <vimpl::union_index_t Idx>
-	constexpr auto& get() & noexcept	{ 
+	constexpr auto& get() & noexcept	{
+		static_assert(Idx < size);
 		Assert__(current == Idx);
 		return storage.impl.template get<Idx>(); 
 	}
 	
 	template <vimpl::union_index_t Idx>
 	constexpr auto&& get() && noexcept { 
+		static_assert(Idx < size);
 		Assert__(current == Idx);
 		return std::move(storage.impl.template get<Idx>()); 
 	}
 	
 	template <vimpl::union_index_t Idx>
-	constexpr const auto& get() const noexcept {
+	constexpr const auto& get() const & noexcept {
+		static_assert(Idx < size);
 		Assert__(current == Idx);
 		return const_cast<variant&>(*this).get<Idx>();
 	}
 	
+	template <vimpl::union_index_t Idx>
+	constexpr const auto&& get() const && noexcept {
+		static_assert(Idx < size);
+		Assert__(current == Idx);
+		//using type = decltype(( get<Idx>() ));
+		return std::move(get<Idx>());
+	}
+	
 	template <class Fn>
-	constexpr decltype(auto) visit(Fn&& fn){
+	constexpr decltype(auto) visit(Fn&& fn) & {
 		Assert__(not valueless_by_exception());
 		return make_dispatcher_t<false>::template dispatcher<Fn&&, variant&>[current](decltype(fn)(fn), *this);
+	}
+	
+	template <class Fn>
+	constexpr decltype(auto) visit(Fn&& fn) const & {
+		Assert__(not valueless_by_exception());
+		return make_dispatcher_t<false>::template dispatcher<Fn&&, const variant&>[current](decltype(fn)(fn), *this);
+	}
+	
+	template <class Fn>
+	constexpr decltype(auto) visit(Fn&& fn) && {
+		Assert__(not valueless_by_exception());
+		return make_dispatcher_t<false>::template dispatcher<Fn&&, variant&&>[current](decltype(fn)(fn), std::move(*this));
+	}
+	
+	template <class Fn>
+	constexpr decltype(auto) visit(Fn&& fn) const && {
+		Assert__(not valueless_by_exception());
+		return make_dispatcher_t<false>::template dispatcher<Fn&&, const variant&&>[current]
+			(decltype(fn)(fn), static_cast<const variant&&>(*this));
 	}
 	
 	template <class Fn>
@@ -505,14 +544,25 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
 		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs)>::template with_table_size<max_size>;
 		const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
+		/* std::cout << "dispatch indices : " << std::endl;
+		for (auto& e : multi_dispatcher<sizeof...(Vs)>::template make_indices< std::decay_t<Vs>::size... >::indices.data ){
+			for (auto& i : e) std::cout << i << " ";
+				std::cout << std::endl;
+		} 
+		std::cout << std::endl; */ 
 		return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
 	}
+}
+
+template <class Fn>
+constexpr decltype(auto) visit(Fn&& fn){
+	return static_cast<Fn&&>(fn)();
 }
 
 template <class R, class Fn, class... Vs>
 	requires (is_variant<Vs> && ...)
 constexpr R visit(Fn&& fn, Vs&&... vars){
-	return visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
+	return static_cast<R>( visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...) );
 }
 
 // ============================== relational operators (20.7.6)

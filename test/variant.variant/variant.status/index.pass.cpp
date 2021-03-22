@@ -54,7 +54,7 @@ int main(int, char**) {
     V v;
     assert(v.index() == 0);
     makeEmpty(v);
-    assert(v.index() == swl::variant<int, float>::npos);
+    assert(v.index() == swl::variant_npos);
   }
 #endif
 

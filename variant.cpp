@@ -66,9 +66,18 @@ struct my_type{
 	~my_type(){ }
 };
 
+struct type1{
+	virtual ~type1(){}
+};
+struct type2{ virtual ~type2(){} };
+
 struct noctor {
 	noctor() = delete;
 };
+
+#include <iostream>
+#include <string>
+#include <cassert>
 
 int main(){
 	
@@ -77,9 +86,20 @@ int main(){
 	//static_assert( not std::is_trivially_destructible_v<swl::variant<std::string, int>> );
 	static_assert( std::is_default_constructible_v<swl::variant<int>> );
 	
-	swl::variant<int, long> vvz;
+	const swl::variant<std::string, type1, type2> v1 {"hello"};
 	
-	static_assert( constructible< swl::variant<int, noctor>, swl::in_place_index_t<1> > );
+	static_assert( std::is_same_v<const std::string&&, decltype( (std::move(v1).get<0>()) )> );
+	
+	swl::variant<type1, type2, type1, std::string> v2;
+	
+	
+	
+	//v1 = "hello";
+	v2 = "hi";
+	
+	visit( [] (auto& a, auto& b) {
+		//std::cout << a << " " << b << std::endl;
+	}, v1, v2);
 	
 	//vvz = "hello";
 	//static_assert( swl::variant<my_type, int>::trivial_dtor );
@@ -91,7 +111,7 @@ int main(){
 	//c = "heheeehee";
 	
 	using namespace swl;
-	variant<PACK> v1, v2, v3, v4, v5;
+	//variant<PACK> v1, v2, v3, v4, v5;
 	
 	//visit( [] (auto x) { std::cout << x << std::endl;}, vrx );
 	

@@ -16,11 +16,12 @@ template <class Seq, bool PassIndex>
 struct make_dispatcher;
 
 template <class Fn, class... Vars>
-using rtype_visit = decltype( declval<Fn>()( declval<Vars>().template get<0>()... ) );
+using rtype_visit = decltype( ( declval<Fn>()( declval<Vars>().template get<0>()... ) ) );
 
 template <class Fn, class Var>
-using rtype_index_visit = decltype( declval<Fn>()( declval<Var>().template get<0>(), 
-								 	std::integral_constant<std::size_t, 0>{} ) );
+using rtype_index_visit = decltype( ( declval<Fn>()( declval<Var>().template get<0>(), 
+								 	  std::integral_constant<std::size_t, 0>{} ) ) 
+								  );
 
 // for simple visitation 
 template <std::size_t... Idx>
@@ -28,8 +29,8 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
 	
 	template <class Fn, class Var>
 	static constexpr rtype_visit<Fn, Var> (*dispatcher[sizeof...(Idx)]) (Fn, Var) = {
-		[] (Fn self, Var var) {
-				return self( static_cast<Var&&>(var).template get<Idx>() );
+		+[] (Fn fn, Var var) -> decltype(auto) {
+				return static_cast<Fn&&>(fn)( static_cast<Var&&>(var).template get<Idx>() );
 		}...
 	};
 };
@@ -39,7 +40,7 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
 	
 	template <class Fn, class Var>
 	static constexpr rtype_index_visit<Fn, Var>(*dispatcher[sizeof...(Idx)]) (Fn, Var) = {
-		[] (Fn fn, Var var){
+		+[] (Fn fn, Var var) -> decltype(auto) {
 			return static_cast<Fn&&>(fn)(static_cast<Var&&>(var).template get<Idx>(), std::integral_constant<unsigned, Idx>{});
 		}... 
 	};
@@ -56,14 +57,18 @@ constexpr unsigned flatten_indices(const auto... args){
 
 inline namespace v2 {
 
-template <unsigned char Idx, unsigned Max>
-constexpr void increment(auto& walker, const auto& sizes){
-	++walker[Idx];
-	if (walker[Idx] == sizes[Idx]){
-		if constexpr (Idx + 1 < Max){
-			walker[Idx] = 0;
-			return increment<Idx + 1, Max>(walker, sizes);
+template <unsigned char Idx>
+constexpr void increment(auto& walker, const auto& sizes, unsigned k){
+	walker[k][Idx] = walker[k - 1][Idx] + 1;
+	if (walker[k][Idx] == sizes[Idx]){
+		if constexpr (Idx > 0){
+			walker[k][Idx] = 0;
+			return increment<Idx - 1>(walker, sizes, k);
 		}
+	}
+	else {
+		for (unsigned x = 1; x <= Idx; ++x)
+			walker[k][Idx - x] = walker[k - 1][Idx - x];
 	}
 }
 
@@ -76,8 +81,8 @@ constexpr auto make_flat_sequence(){
 	array_wrapper<walker_t[total_size]> res {{0}};
 	auto& tab = res.data;
 	
-	for (unsigned k = 0; k < total_size; k += num_dim){
-		increment<0, num_dim>(tab[k], sizes);
+	for (unsigned k = 1; k < total_size; ++k){
+		increment<num_dim-1>(tab, sizes, k);
 	}
 	
 	return res;
@@ -106,6 +111,7 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 	template <unsigned FlatIdx, class Fn, class... Vars>
 	static constexpr decltype(auto) func (Fn fn, Vars... vars){
 		constexpr auto& coord = make_indices<std::decay_t<Vars>::size...>::indices.data[FlatIdx];
+		//(std::cout << ... << coord[Vx]) << std::endl;
 		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template get<coord[Vx]>()... );
 	}
 		
