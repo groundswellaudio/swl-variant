@@ -20,7 +20,7 @@
 
 #endif
 
-//#define SWL_VARIANT_DEBUG
+#define SWL_VARIANT_DEBUG
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
@@ -31,11 +31,22 @@
 
 namespace swl {
 
+struct bad_variant_access : std::exception {
+	bad_variant_access(const char* msg) noexcept : message(msg) {}
+	const char* what() const noexcept override { return message; }
+	const char* message;
+};
+
+namespace vimpl { 
+	struct variant_tag{};
+	struct emplacer_tag{};
+}
+
 template <class T>
-struct in_place_type_t{};
+struct in_place_type_t : private vimpl::emplacer_tag {};
 
 template <std::size_t Index>
-struct in_place_index_t{};
+struct in_place_index_t : private vimpl::emplacer_tag {};
 
 template <std::size_t Index>
 inline static constexpr in_place_index_t<Index> in_place_index;
@@ -43,23 +54,16 @@ inline static constexpr in_place_index_t<Index> in_place_index;
 template <class T>
 inline static constexpr in_place_type_t<T> in_place_type;
 
-struct bad_variant_access : std::exception {
-	bad_variant_access(const char* msg) noexcept : message(msg) {}
-	const char* what() const noexcept override { return message; }
-	const char* message;
-};
-
 namespace vimpl {
 	#include "variant_detail.hpp"
 	#include "variant_visit.hpp"
-	struct variant_detector_t{};
 }
 
 template <class T>
-inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_detector_t, std::decay_t<T>>;
+inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_tag, std::decay_t<T>>;
 
 template <class... Ts>
-class variant : private vimpl::variant_detector_t {
+class variant : private vimpl::variant_tag {
 	
 	public :
 	
@@ -140,12 +144,19 @@ class variant : private vimpl::variant_detector_t {
 		noexcept ((std::is_nothrow_move_constructible_v<Ts> && ...))
 		requires (has_move_ctor and not trivial_move_ctor)
 	: storage{ vimpl::valueless_construct_t{} } {
+		if constexpr (can_be_valueless)
+			if (o.valueless_by_exception()){
+				current = npos;
+				return;
+			}
+				
 		static_cast<variant&&>(o).visit_with_index( vimpl::emplace_into<variant&>{*this} );
 	}
 	
 	// generic constructor
-	template <class T, class M = vimpl::best_overload_match<T&&, Ts...>>
-		requires ( !std::is_same_v<std::decay_t<T>, variant> )
+	template <class T, class M = vimpl::best_overload_match<T&&, Ts...>, class D = std::decay_t<T>>
+		requires ( not std::is_same_v<D, variant> 
+				   and not std::is_base_of_v<vimpl::emplacer_tag, D> )
 	constexpr variant(T&& t) 
 		noexcept ( std::is_nothrow_constructible_v<M, T&&> )
 	: variant{ in_place_index< vimpl::find_type<M, Ts... >() >, static_cast<T&&>(t) }
@@ -153,12 +164,14 @@ class variant : private vimpl::variant_detector_t {
 	
 	// construct at index
 	template <std::size_t Index, class... Args>
+		requires (Index < sizeof...(Ts) && std::is_constructible_v<alternative<Index>, Args&&...>)
 	explicit constexpr variant(in_place_index_t<Index> tag, Args&&... args)
 	: storage{tag, static_cast<Args&&>(args)...}, current(Index) 
 	{}
 	
 	// construct a given type
 	template <class T, class... Args>
+		requires (vimpl::appears_exactly_once<T, Ts...> && std::is_constructible_v<T, Args&&...>)
 	explicit constexpr variant(in_place_type_t<T> tag, Args&&... args)
 	: variant{ in_place_index<vimpl::find_type<T, Ts...>()>, static_cast<Args&&>(args)... }
 	{}
@@ -268,7 +281,7 @@ class variant : private vimpl::variant_detector_t {
 	
 	template <class T, class... Args>
 	T& emplace(Args&&... args){
-		static_assert( (static_cast<unsigned short>(std::is_same_v<T, Ts>) + ...) == 1,
+		static_assert( vimpl::appears_exactly_once<T, Ts...>,  
 			"Variant emplace : the type to be emplaced must appear exactly once." ); 
 		
 		constexpr auto Index = vimpl::find_type<T, Ts...>();	
@@ -286,7 +299,7 @@ class variant : private vimpl::variant_detector_t {
 			current = npos;
 		
 		//new(static_cast<void*>(&get<Idx>())) T (static_cast<Args&&>(args)...);
-		new( (void*)(&get<Idx>()) ) T (static_cast<Args&&>(args)...);
+		new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);
 		current = static_cast<index_type>(Idx);
 		return get<Idx>();
 	}
@@ -330,7 +343,7 @@ class variant : private vimpl::variant_detector_t {
 	
 	template <vimpl::union_index_t Idx>
 	constexpr auto& get() & noexcept	{ 
-		// no assert here as this one is used in emplace()
+		Assert__(current == Idx);
 		return storage.impl.template get<Idx>(); 
 	}
 	
@@ -346,22 +359,28 @@ class variant : private vimpl::variant_detector_t {
 		return const_cast<variant&>(*this).get<Idx>();
 	}
 	
-	template <class VisitorType>
-	constexpr decltype(auto) visit(VisitorType&& fn){
+	template <class Fn>
+	constexpr decltype(auto) visit(Fn&& fn){
 		Assert__(not valueless_by_exception());
-		return make_dispatcher_t<false>::template dispatcher<VisitorType&&, variant&>[current](decltype(fn)(fn), *this);
+		return make_dispatcher_t<false>::template dispatcher<Fn&&, variant&>[current](decltype(fn)(fn), *this);
 	}
 	
-	template <class VisitorType>
-	constexpr decltype(auto) visit_with_index(VisitorType&& fn){
+	template <class Fn>
+	constexpr decltype(auto) visit_with_index(Fn&& fn) & {
 		Assert__(not valueless_by_exception());
-		return make_dispatcher_t<true>::template dispatcher<VisitorType&&, variant&>[current](decltype(fn)(fn), *this);
+		return make_dispatcher_t<true>::template dispatcher<Fn&&, variant&>[current](decltype(fn)(fn), *this);
 	}
 	
-	template <class VisitorType>
-	constexpr decltype(auto) visit_with_index(VisitorType&& fn) const { 
+	template <class Fn>
+	constexpr decltype(auto) visit_with_index(Fn&& fn) const & { 
 		Assert__(not valueless_by_exception());
-		return make_dispatcher_t<true>::template dispatcher<VisitorType&&, const variant&>[current](decltype(fn)(fn), *this);
+		return make_dispatcher_t<true>::template dispatcher<Fn&&, const variant&>[current](decltype(fn)(fn), *this);
+	}
+	
+	template <class Fn>
+	constexpr decltype(auto) visit_with_index(Fn&& fn) && { 
+		Assert__(not valueless_by_exception());
+		return make_dispatcher_t<true>::template dispatcher<Fn&&, variant&&>[current](decltype(fn)(fn), std::move(*this));
 	}
 	
 	private : 
@@ -473,8 +492,8 @@ template <class Fn, class... Vs>
 	requires (is_variant<Vs> && ...)
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 	if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
-			if ( (vars.valueless_by_exception() || ...) ) 
-				throw bad_variant_access{"swl::variant : Bad variant access in visit."};
+		if ( (vars.valueless_by_exception() || ...) ) 
+			throw bad_variant_access{"swl::variant : Bad variant access in visit."};
 				
 	if constexpr (sizeof...(Vs) == 1){
 		return [] (auto&& fn, auto&& head) { 

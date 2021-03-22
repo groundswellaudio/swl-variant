@@ -29,6 +29,9 @@ struct conditional<false> {
 
 //#include <iostream>
 
+template <class T, class... Args>
+concept constructible = requires (Args... args) { T{ args... }; };
+
 template <unsigned X>
 struct ctor_detect{
 	
@@ -63,6 +66,10 @@ struct my_type{
 	~my_type(){ }
 };
 
+struct noctor {
+	noctor() = delete;
+};
+
 int main(){
 	
 	//swl::variant<int, std::string> vst { swl::in_place_index<1>, "hehehe" };
@@ -71,6 +78,9 @@ int main(){
 	static_assert( std::is_default_constructible_v<swl::variant<int>> );
 	
 	swl::variant<int, long> vvz;
+	
+	static_assert( constructible< swl::variant<int, noctor>, swl::in_place_index_t<1> > );
+	
 	//vvz = "hello";
 	//static_assert( swl::variant<my_type, int>::trivial_dtor );
 	

@@ -18,6 +18,9 @@ constexpr std::size_t find_type(){
 	return size;
 }
 
+template <class T, class... Ts>
+inline constexpr bool appears_exactly_once = (static_cast<unsigned short>(std::is_same_v<T, Ts>) + ...) == 1;
+
 // ============= type pack element 
 
 template <class... Ts>

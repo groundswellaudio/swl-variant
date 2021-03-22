@@ -329,6 +329,7 @@ void test_constexpr_move_ctor() {
 #endif // > C++17
 }
 
+
 int main(int, char**) {
   test_move_ctor_basic();
   test_move_ctor_valueless_by_exception();

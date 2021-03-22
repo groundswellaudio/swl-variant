@@ -44,7 +44,7 @@ struct DefaultCtorThrows {
 
 void test_default_ctor_sfinae() {
   {
-    using V = swl::variant<std::monostate, int>;
+    using V = swl::variant<swl::monostate, int>;
     static_assert(std::is_default_constructible<V>::value, "");
   }
   {

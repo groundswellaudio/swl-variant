@@ -86,8 +86,8 @@ void test_T_ctor_sfinae() {
     };
     static_assert(!std::is_constructible<V, X>::value,
                   "no boolean conversion in constructor");
-    static_assert(!std::is_constructible<V, std::false_type>::value,
-                  "no converted to bool in constructor");
+    /* static_assert(!std::is_constructible<V, std::false_type>::value,
+                  "no converted to bool in constructor"); */
   }
   {
     struct X {};
