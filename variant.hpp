@@ -201,9 +201,9 @@ class variant : private vimpl::variant_detector_t {
 							  or not std::is_nothrow_move_constructible_v<type>)
 					this->emplace<index_cst>(elem);
 				else{
-					auto tmp = elem;
+					alternative<index_cst> tmp = elem;
 					this->emplace<index_cst>(std::move(tmp));
-				}	
+				}
 			}
 		});
 		return *this;
@@ -246,14 +246,21 @@ class variant : private vimpl::variant_detector_t {
 	constexpr variant& operator=(T&& t) 
 		noexcept( std::is_nothrow_assignable_v<vimpl::best_overload_match<T&&, Ts...>, T&&> 
 				  && std::is_nothrow_constructible_v<vimpl::best_overload_match<T&&, Ts...>, T&&> )
-	{
+	{	
 		using namespace vimpl;
-		using related_type = best_overload_match<T, Ts...>;
+		using related_type = best_overload_match<T&&, Ts...>;
 		constexpr auto new_index = find_type<related_type, Ts...>();
 		if (current == new_index)
 			get<new_index>() = static_cast<T&&>(t);
-		else 
-			(void) emplace<new_index>(static_cast<T&&>(t));
+		else {
+			if constexpr ( std::is_nothrow_constructible_v<related_type, T> 
+						   or not std::is_nothrow_move_constructible_v<related_type> )
+				emplace<new_index>( static_cast<T&&>(t) );
+			else {
+				related_type tmp = t;
+				emplace<new_index>(std::move(tmp));
+			}
+		}
 		return *this;
 	}
 	
