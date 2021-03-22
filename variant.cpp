@@ -75,43 +75,30 @@ struct noctor {
 	noctor() = delete;
 };
 
+/* 
 #include <iostream>
 #include <string>
-#include <cassert>
+#include <cassert> */ 
 
 int main(){
 	
 	//swl::variant<int, std::string> vst { swl::in_place_index<1>, "hehehe" };
 	
 	//static_assert( not std::is_trivially_destructible_v<swl::variant<std::string, int>> );
-	static_assert( std::is_default_constructible_v<swl::variant<int>> );
-	
-	const swl::variant<std::string, type1, type2> v1 {"hello"};
-	
-	static_assert( std::is_same_v<const std::string&&, decltype( (std::move(v1).get<0>()) )> );
-	
-	swl::variant<type1, type2, type1, std::string> v2;
 	
 	
 	
-	//v1 = "hello";
-	v2 = "hi";
-	
-	visit( [] (auto& a, auto& b) {
-		//std::cout << a << " " << b << std::endl;
-	}, v1, v2);
 	
 	//vvz = "hello";
 	//static_assert( swl::variant<my_type, int>::trivial_dtor );
 	
 	//swl::variant<int> v;
 	
-	swl::variant<int, my_type> vvv;
 	
 	//c = "heheeehee";
 	
 	using namespace swl;
-	//variant<PACK> v1, v2, v3, v4, v5;
+	variant<PACK> v1, v2, v3, v4, v5;
 	
 	//visit( [] (auto x) { std::cout << x << std::endl;}, vrx );
 	
@@ -119,7 +106,7 @@ int main(){
 	
 	//std::cout << (vr1 == vr2) << std::endl;
 	
-	//visit( [] (auto... args) {}, v1, v2, v3, v4);
+	visit( [] (auto... args) {}, v1, v2, v3, v4);
 	
 	/* 
 	vrx.emplace<1>(2.33f);

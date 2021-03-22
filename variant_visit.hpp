@@ -55,7 +55,7 @@ constexpr unsigned flatten_indices(const auto... args){
 
 //  for visit of two variants of size 24 : clang ~1.2 sec, gcc ~4.45 sec
 
-inline namespace v2 {
+namespace v2 {
 
 template <unsigned char Idx>
 constexpr void increment(auto& walker, const auto& sizes, unsigned k){
@@ -111,7 +111,6 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 	template <unsigned FlatIdx, class Fn, class... Vars>
 	static constexpr decltype(auto) func (Fn fn, Vars... vars){
 		constexpr auto& coord = make_indices<std::decay_t<Vars>::size...>::indices.data[FlatIdx];
-		//(std::cout << ... << coord[Vx]) << std::endl;
 		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template get<coord[Vx]>()... );
 	}
 		
@@ -126,5 +125,56 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 };
 
 } // V2 
+
+inline namespace v3 {
+
+
+template <std::size_t N>
+constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[N]){
+	array_wrapper<unsigned[N]> res;
+	auto& data = res.data;
+	for (unsigned k = 1; k < N; ++k){
+		const auto prev = Idx;
+		Idx /= sizes[N - k];
+		data[N - k] = prev - Idx * sizes[k];
+	}
+	data[0] = Idx;
+	return res;
+}
+
+// this build an array of array of all the possibles indices (make_indices)
+// and use it to build the dispatch table (with_table_size::impl)
+template <unsigned NumVariants, class SizeSeq, class AccessSeq = std::make_integer_sequence<unsigned, NumVariants>>
+struct multi_dispatcher;
+
+template <unsigned NumVariants, unsigned... VarSizes, unsigned... Vx>
+struct multi_dispatcher
+	<NumVariants, 
+	std::integer_sequence<unsigned, VarSizes...>, 
+	std::integer_sequence<unsigned, Vx...>
+	> 
+{	
+	static constexpr unsigned var_sizes[] = {VarSizes...};
+	
+	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>
+	struct with_table_size;
+	
+	template <unsigned FlatIdx, class Fn, class... Vars>
+	static constexpr decltype(auto) func (Fn fn, Vars... vars){
+		constexpr auto coord = unflatten(FlatIdx, var_sizes);
+		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template get<coord.data[Vx]>()... );
+	}
+		
+	template <unsigned TableSize, unsigned... Idx>
+	struct with_table_size<TableSize, std::integer_sequence<unsigned, Idx...> > {
+		
+		template <class Fn, class... Vars>
+		static constexpr rtype_visit<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
+			func<Idx, Fn, Vars...>...
+		};
+	};
+}; 
+
+}// v3
 
 #endif

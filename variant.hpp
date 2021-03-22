@@ -527,6 +527,9 @@ constexpr const T* get_if(const variant<Ts...>* v) noexcept {
 
 // =============================== visitation (20.7.7)
 
+/* 
+namespace v2 {
+
 template <class Fn, class... Vs>
 	requires (is_variant<Vs> && ...)
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
@@ -544,6 +547,40 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
 		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs)>::template with_table_size<max_size>;
 		const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
+		//std::cout << "dispatch indices : " << std::endl;
+		//for (auto& e : multi_dispatcher<sizeof...(Vs)>::template make_indices< std::decay_t<Vs>::size... >::indices.data ){
+		//	for (auto& i : e) std::cout << i << " ";
+		//		std::cout << std::endl;
+		//} 
+		//std::cout << std::endl;
+		return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
+	}
+} 
+
+} */ 
+
+inline namespace v3 {
+
+template <class Fn, class... Vs>
+	requires (is_variant<Vs> && ...)
+constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
+	if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
+		if ( (vars.valueless_by_exception() || ...) ) 
+			throw bad_variant_access{"swl::variant : Bad variant access in visit."};
+				
+	if constexpr (sizeof...(Vs) == 1){
+		return [] (auto&& fn, auto&& head) { 
+			return decltype(head)(head).visit(static_cast<Fn&&>(fn));
+		} (static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
+	}
+	else {
+		using namespace vimpl;
+		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
+		constexpr unsigned var_sizes[] = {std::decay_t<Vs>::size...};
+		
+		using size_seq = std::integer_sequence<unsigned, std::decay_t<Vs>::size...>;
+		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs), size_seq>::template with_table_size<max_size>;
+		const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
 		/* std::cout << "dispatch indices : " << std::endl;
 		for (auto& e : multi_dispatcher<sizeof...(Vs)>::template make_indices< std::decay_t<Vs>::size... >::indices.data ){
 			for (auto& i : e) std::cout << i << " ";
@@ -553,6 +590,9 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 		return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
 	}
 }
+
+}
+
 
 template <class Fn>
 constexpr decltype(auto) visit(Fn&& fn){
