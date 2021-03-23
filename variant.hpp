@@ -20,7 +20,7 @@
 
 #endif
 
-//#define SWL_VARIANT_DEBUG
+#define SWL_VARIANT_DEBUG
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
@@ -311,7 +311,6 @@ class variant : private vimpl::variant_tag {
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
 			current = npos;
 		
-		//new(static_cast<void*>(&get<Idx>())) T (static_cast<Args&&>(args)...);
 		new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);
 		current = static_cast<index_type>(Idx);
 		return get<Idx>();
@@ -333,12 +332,24 @@ class variant : private vimpl::variant_tag {
 	
 	void swap(variant& o) 
 		noexcept ( (std::is_nothrow_move_constructible_v<Ts> && ...) 
-				   && (vimpl::nothrow_swappable<Ts> && ...) )
-		requires (has_move_ctor && (vimpl::swappable<Ts> && ...))
+				   && (vimpl::swap_trait::template nothrow<Ts> && ...) )
+		requires (has_move_ctor && (vimpl::swap_trait::template able<Ts> && ...))
 	{
 		if constexpr (can_be_valueless){
-			if (valueless_by_exception() && o.valueless_by_exception())
+			if (index() == npos){
+				if (o.index() == npos) 
+					return;
+				else {
+					std::move(o).visit_with_index( vimpl::emplace_into<variant&>{*this} );
+					o.current = npos;
+					return;
+				}
+			}
+			else if (o.index() == npos){
+				std::move(*this).visit_with_index( vimpl::emplace_into<variant&>{o} );
+				current = npos;
 				return;
+			}
 		}
 		
 		Assert__( not (valueless_by_exception() && o.valueless_by_exception()) );
@@ -346,7 +357,7 @@ class variant : private vimpl::variant_tag {
 		if (index() == o.index()){
 			o.visit_with_index( [this] (auto& elem, auto index_) {
 				using std::swap;
-				swap(get<index_>(), elem);
+				swap(this->get<index_>(), elem);
 			});
 		}
 		else {
@@ -391,7 +402,6 @@ class variant : private vimpl::variant_tag {
 	constexpr const auto&& get() const && noexcept {
 		static_assert(Idx < size);
 		Assert__(current == Idx);
-		//using type = decltype(( get<Idx>() ));
 		return std::move(get<Idx>());
 	}
 	

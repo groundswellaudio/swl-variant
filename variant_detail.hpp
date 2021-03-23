@@ -119,7 +119,8 @@ struct eq_comp {
 
 template <class A>
 struct emplace_into {
-	constexpr void operator()(auto&& elem, auto index) const {
+	template <class T>
+	constexpr void operator()(T&& elem, auto index) const {
 		a.template emplace<index>(decltype(elem)(elem));
 	}
 	A& a;
@@ -309,30 +310,16 @@ using smallest_suitable_integer_type =
 					  Ts...
 					  >;
 
-template <bool HasAdlSwap>
-struct swap_trait;
+namespace swap_trait {
+	using std::swap;    
+	
+	template <class A>
+	concept able = requires (A a, A b) { swap(a, b); };
+	
+	template <class A>
+	inline constexpr bool nothrow = noexcept( swap(std::declval<A&>(), std::declval<A&>()) );
+}
 
-template <>
-struct swap_trait<true> {
-	template <class T>
-	static constexpr bool nothrow = noexcept( swap(declval<T&>(), declval<T&>()) );
-};
-
-template <>
-struct swap_trait<false> {
-	template <class T>
-	static constexpr bool nothrow = false;
-};
-
-// gcc is_swappable and is_nothrow_swappable implementation is broken? 
-template <class A>
-concept swappable = requires (A a, A b) { swap(a, b); } 
-			|| requires (A a, A b) { std::swap(a, b); };
-			
-template <class T>
-inline constexpr bool nothrow_swappable = 
-	(std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>)
-	|| swap_trait< requires (T a, T b) { swap(a, b); } >::template nothrow<T>;
 
 #ifdef SWL_CPP_VARIANT_USE_STD_HASH
   
