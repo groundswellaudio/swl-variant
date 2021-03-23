@@ -16,9 +16,8 @@
 
 #include "test_macros.h"
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
-/n
+#include <variant.hpp> 
+ 
 
 int main(int, char**) {
   {

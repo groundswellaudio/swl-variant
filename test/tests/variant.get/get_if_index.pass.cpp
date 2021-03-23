@@ -19,13 +19,12 @@
 //   get_if(const variant<Types...>* v) noexcept;
 
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 #include "variant_test_helpers.h"
 
-/n
+ 
 #include <memory>
 
 void test_const_get_if() {

@@ -14,8 +14,7 @@
 // LWG issue 3024
 
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 #include <type_traits>
 
 struct NotCopyConstructible

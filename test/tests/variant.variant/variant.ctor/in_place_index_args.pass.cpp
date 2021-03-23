@@ -22,12 +22,11 @@
 // template <size_t I, class ...Args>
 // constexpr explicit variant(in_place_index_t<I>, Args&&...);
 
-/n
+ 
 #include <string>
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_convertible.h"
 #include "test_macros.h"

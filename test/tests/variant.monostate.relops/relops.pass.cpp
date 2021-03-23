@@ -19,11 +19,10 @@
 // constexpr bool operator!=(monostate, monostate) noexcept { return false; }
 
 #include "test_macros.h"
-/n
+ 
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 int main(int, char**) {
   using M = swl::monostate;

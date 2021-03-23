@@ -21,12 +21,11 @@
 
 // variant(variant&&) noexcept(see below); // constexpr in C++20
 
-/n
+ 
 #include <string>
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 #include "test_workarounds.h"

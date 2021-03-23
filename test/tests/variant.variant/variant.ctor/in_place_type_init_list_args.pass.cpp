@@ -23,12 +23,11 @@
 // constexpr explicit
 // variant(in_place_type_t<Tp>, initializer_list<Up>, Args&&...);
 
-/n
+ 
 #include <string>
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_convertible.h"
 #include "test_macros.h"

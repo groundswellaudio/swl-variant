@@ -21,12 +21,11 @@
 
 // template <class T> constexpr variant(T&&) noexcept(see below);
 
-/n
+ 
 #include <string>
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 #include <memory>
 
 #include "test_macros.h"

@@ -15,10 +15,9 @@
 
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
+#include <variant.hpp> 
 
-
-/n
+ 
 #include "test_macros.h"
 
 int main(int, char**) {

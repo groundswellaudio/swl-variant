@@ -22,12 +22,11 @@
 // template <size_t I, class U, class ...Args>
 //   variant_alternative_t<I, variant<Types...>>& emplace(initializer_list<U> il,Args&&... args);
 
-/n
+ 
 #include <string>
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "archetypes.h"
 #include "test_convertible.h"

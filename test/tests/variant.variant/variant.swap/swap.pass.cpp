@@ -21,12 +21,11 @@
 
 // void swap(variant& rhs) noexcept(see below)
 
-/n
+ 
 #include <string>
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_convertible.h"
 #include "test_macros.h"

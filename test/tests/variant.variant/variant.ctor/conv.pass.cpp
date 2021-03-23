@@ -16,8 +16,7 @@
 // template <class T> constexpr variant(T&&) noexcept(see below);
 
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 #include <string>
 #include <memory>
 

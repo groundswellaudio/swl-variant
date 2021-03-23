@@ -14,8 +14,7 @@
 // template <class ...Types> class variant;
 
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 #include "variant_test_helpers.h"

@@ -20,8 +20,7 @@
 // constexpr see below visit(Visitor&& vis, Variants&&... vars);
 
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 

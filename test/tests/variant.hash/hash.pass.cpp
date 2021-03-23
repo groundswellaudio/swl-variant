@@ -14,11 +14,10 @@
 // template <class... Types> struct hash<variant<Types...>>;
 // template <> struct hash<monostate>;
 
-/n
+ 
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 #include "variant_test_helpers.h"

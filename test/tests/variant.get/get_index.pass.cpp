@@ -33,13 +33,12 @@
 #include "test_macros.h"
 #include "test_workarounds.h"
 #include "variant_test_helpers.h"
-/n
+ 
 #include <type_traits>
 #include <utility>
 
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 void test_const_lvalue_get() {
   {

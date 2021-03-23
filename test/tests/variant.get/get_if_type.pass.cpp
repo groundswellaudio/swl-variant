@@ -18,12 +18,11 @@
 //  noexcept;
 
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 #include "variant_test_helpers.h"
-/n
+ 
 
 void test_const_get_if() {
   {

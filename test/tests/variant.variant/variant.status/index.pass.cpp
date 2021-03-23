@@ -15,12 +15,11 @@
 
 // constexpr size_t index() const noexcept;
 
-/n
+ 
 #include <string>
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "archetypes.h"
 #include "test_macros.h"

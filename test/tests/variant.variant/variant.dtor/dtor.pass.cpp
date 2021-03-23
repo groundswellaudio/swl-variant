@@ -15,11 +15,10 @@
 
 // ~variant();
 
-/n
+ 
 #include <type_traits>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 

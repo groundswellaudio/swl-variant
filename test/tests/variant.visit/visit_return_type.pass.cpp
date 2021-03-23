@@ -19,14 +19,13 @@
 // template <class R, class Visitor, class... Variants>
 // constexpr R visit(Visitor&& vis, Variants&&... vars);
 
-/n
+ 
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 #include "variant_test_helpers.h"

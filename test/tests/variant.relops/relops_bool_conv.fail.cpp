@@ -35,12 +35,11 @@
 // constexpr bool
 // operator>=(variant<Types...> const&, variant<Types...> const&) noexcept;
 
-/n
+ 
 #include <type_traits>
 #include <utility>
 #include <swl_assert.hpp> 
- #include <variant.hpp> 
-
+#include <variant.hpp> 
 
 #include "test_macros.h"
 
