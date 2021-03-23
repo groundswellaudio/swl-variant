@@ -1,9 +1,11 @@
 
 #include "ext/include/ghc/fs_std.hpp"
+#include "pipecmd.hpp"
 #include <string_view>
 #include <cstdlib>
 #include <iostream>
 #include <chrono>
+#include <swl_assert.hpp>
 
 constexpr const char* list[] = 
 {	
@@ -81,7 +83,12 @@ constexpr const char* list[] =
 #include <thread>
 #include <cassert>
 
-bool compile_and_run(std::string_view path){
+struct test_result {
+	bool has_compiled;
+	std::string output;
+};
+
+test_result compile_and_run(std::string_view path){
 	constexpr auto&& output_name = "./tmp.test";
 	
 	auto time_point = fs::file_time_type::clock::now();
@@ -95,21 +102,14 @@ bool compile_and_run(std::string_view path){
 	cmd += " -I . -I .. ";
 	cmd += path;
 	
-	
-	//using namespace std::chrono_literals;
-	//std::this_thread::sleep_for(100ms); // just to give the clock some room...
-	
-	//std::cout << cmd << std::endl;
-	
 	std::system(cmd.c_str());
 	
 	if (fs::exists(output_name)){
-		std::string cmd = "./";
-		cmd += output_name;
-		std::system(cmd.c_str());
-		return true;
+		pipecmd::readable syscmd;
+		syscmd.open(output_name);
+		return {true, syscmd.read()};
 	}
-	else return false;
+	else return {false, ""};
 }
 
 bool is_fail_test(std::string_view filepath){
@@ -117,10 +117,14 @@ bool is_fail_test(std::string_view filepath){
 }
 
 bool perform_fail_test(std::string_view filepath){
-	bool res = compile_and_run(filepath);
-	if (res)
+	auto res = compile_and_run(filepath);
+	if (res.has_compiled)
 		std::cout << "Failed test : " << filepath << ", (shouldn't have compiled)." << std::endl;
-	return not res;
+	return not res.has_compiled;
+}
+
+bool contains(const std::string& str, auto&& word){
+	return (str.find(word) != std::string::npos);
 }
 
 bool perform_test(std::string_view filepath){
@@ -129,21 +133,44 @@ bool perform_test(std::string_view filepath){
 		return perform_fail_test(filepath);
 	}
 	
-	bool res = compile_and_run(filepath);
-	if (not res)
+	auto res = compile_and_run(filepath);
+	if (not res.has_compiled){
 		std::cout << "Failed test : " << filepath << ", (should have compiled)." << std::endl;
-	return res;
+		return false;
+	}
+	
+	if ( contains(res.output, failure_token) ){
+		std::cout << "Failed test : " << filepath << ", failed assertion" << std::endl;
+		return false;
+	}
+	if ( not contains(res.output, expected_exit_token) ){
+		std::cout << "Failed test : " << filepath << ", unexpected exit." << std::endl;
+		return false;
+	}
+	
+	std::cout << "Test " << filepath << " successful. " << std::endl;
+	
+	return true;
 }
 
 int main(){
 	
 	std::string summary;
 	
-	for (auto& f : list){
-		if (perform_test(f))
-			((summary += "Test ") += f) += " : passed. \n";
+	unsigned k = 0;
+	
+	for (auto f : fs::recursive_directory_iterator("./tests")){
+		if (f.path().extension() != ".cpp") 
+			continue;
+		
+		++k;
+		if (k == 5) break;
+		
+		auto path = std::string_view(f.path().c_str());
+		if (perform_test(path))
+			((summary += "Test ") += path) += " : passed. \n";
 		else
-			((summary += "Test ") += f) += " : failed. \n";
+			((summary += "Test ") += path) += " : failed. \n";
 	}
 	
 	std::cout << "Test summary : \n" << summary << std::endl;

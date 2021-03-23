@@ -20,7 +20,7 @@
 
 #endif
 
-#define SWL_VARIANT_DEBUG
+//#define SWL_VARIANT_DEBUG
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
@@ -38,7 +38,7 @@ struct bad_variant_access : std::exception {
 	bad_variant_access(const bad_variant_access&) noexcept = default;
 	bad_variant_access& operator= (const bad_variant_access&) noexcept = default;
 	const char* what() const noexcept override { return message; }
-	const char* message = " "; // llvm test requires a non null what() on default init
+	const char* message = " "; // llvm test requires a well formed what() on default init
 };
 
 namespace vimpl { 
@@ -61,17 +61,17 @@ inline static constexpr in_place_type_t<T> in_place_type;
 namespace vimpl {
 	#include "variant_detail.hpp"
 	#include "variant_visit.hpp"
+	
+	struct variant_npos_t {
+		template <class T>
+		constexpr bool operator==(T idx) const noexcept { return idx == std::numeric_limits<T>::max(); }
+	};
 }
 
 template <class T>
 inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_tag, std::decay_t<T>>;
 
-struct variant_npos_t {
-	template <class T>
-	constexpr bool operator==(T idx) const noexcept { return idx == std::numeric_limits<T>::max(); }
-};
-
-inline static constexpr variant_npos_t variant_npos;
+inline static constexpr vimpl::variant_npos_t variant_npos;
 
 template <class... Ts>
 class variant : private vimpl::variant_tag {
@@ -330,6 +330,7 @@ class variant : private vimpl::variant_tag {
 	
 	// =================================== swap (20.7.3.7)
 	
+	/* 
 	void swap(variant& o) 
 		noexcept ( (std::is_nothrow_move_constructible_v<Ts> && ...) 
 				   && (vimpl::swap_trait::template nothrow<Ts> && ...) )
@@ -372,7 +373,7 @@ class variant : private vimpl::variant_tag {
 				});
 			});
 		}
-	}
+	} */ 
 	
 	// +================================== methods for internal use
 	// these methods performs no errors checking at all
@@ -573,17 +574,10 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 	else {
 		using namespace vimpl;
 		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
-		constexpr unsigned var_sizes[] = {std::decay_t<Vs>::size...};
 		
 		using size_seq = std::integer_sequence<unsigned, std::decay_t<Vs>::size...>;
 		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs), size_seq>::template with_table_size<max_size>;
 		const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
-		/* std::cout << "dispatch indices : " << std::endl;
-		for (auto& e : multi_dispatcher<sizeof...(Vs)>::template make_indices< std::decay_t<Vs>::size... >::indices.data ){
-			for (auto& i : e) std::cout << i << " ";
-				std::cout << std::endl;
-		} 
-		std::cout << std::endl; */ 
 		return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
 	}
 }

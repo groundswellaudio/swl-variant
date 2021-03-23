@@ -1,7 +1,5 @@
 #ifdef SWL_CPP_LIBRARY_VARIANT_HPP
 
-template <class T>
-T&& declval();
 
 template <class T>
 struct array_wrapper { 
@@ -69,25 +67,16 @@ struct make_overload<std::integer_sequence<std::size_t, Idx...>, Args...>
 	using overload_frag<Idx, Args>::operator()...;
 };
 
-#define find_best_overload(T, Pack) make_overload<std::make_index_sequence<sizeof...(Pack)>, Pack ...>{}( declval<T>(), declval<T>() ) 
+#define find_best_overload(T, Pack) make_overload<std::make_index_sequence<sizeof...(Pack)>, Pack ...>{}( std::declval<T>(), std::declval<T>() ) 
 
-/* 
-template <class T, class... Ts>
-using best_overload_match 
-	= typename decltype( make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}( declval<T>(), declval<T>() ) 
-					   )::type; */ 
-					   
 template <class T, class... Ts>
 using best_overload_match = typename decltype( find_best_overload(T, Ts) )::type;
-
-/* 
-template <class T, class... Ts>
-inline constexpr bool has_non_ambiguous_match 
-	= requires { make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}( declval<T>(), declval<T>() ); };  */ 
 	
 template <class T, class... Ts>
 concept has_non_ambiguous_match = 
 	requires { typename best_overload_match<T, Ts...>; };
+
+#undef find_best_overload
 
 // ================================== rel ops
 

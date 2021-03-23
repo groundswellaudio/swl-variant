@@ -16,10 +16,10 @@ template <class Seq, bool PassIndex>
 struct make_dispatcher;
 
 template <class Fn, class... Vars>
-using rtype_visit = decltype( ( declval<Fn>()( declval<Vars>().template get<0>()... ) ) );
+using rtype_visit = decltype( ( std::declval<Fn>()( std::declval<Vars>().template get<0>()... ) ) );
 
 template <class Fn, class Var>
-using rtype_index_visit = decltype( ( declval<Fn>()( declval<Var>().template get<0>(), 
+using rtype_index_visit = decltype( ( std::declval<Fn>()( std::declval<Var>().template get<0>(), 
 								 	  std::integral_constant<std::size_t, 0>{} ) ) 
 								  );
 
