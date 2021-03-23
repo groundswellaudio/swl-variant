@@ -4,10 +4,8 @@
 #include <string_view>
 #include <cstdlib>
 #include <iostream>
-#include <chrono>
 #include <swl_assert.hpp>
 
-#include <thread>
 #include <cassert>
 
 struct test_result {
@@ -18,11 +16,8 @@ struct test_result {
 test_result compile_and_run(std::string_view path){
 	constexpr auto&& output_name = "./tmp.test";
 	
-	auto time_point = fs::file_time_type::clock::now();
-	
 	if (not fs::remove(output_name) )
 		assert( not fs::exists(output_name) && "failed to remove test binary file.");
-	
 	
 	std::string cmd = "g++ -std=c++20 -o ";
 	cmd += output_name;
@@ -84,14 +79,12 @@ int main(){
 	
 	std::string summary;
 	
+	
 	unsigned k = 0;
 	
 	for (auto f : fs::recursive_directory_iterator("./tests")){
 		if (f.path().extension() != ".cpp") 
 			continue;
-		
-		++k;
-		if (k == 10) break;
 		
 		auto path = std::string_view(f.path().c_str());
 		if (perform_test(path))

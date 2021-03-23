@@ -41,7 +41,7 @@ int main(int, char**) {
   static_assert(noexcept(swl::bad_variant_access{"hello"}), "must be noexcept");
   static_assert(noexcept(swl::bad_variant_access{"hello"}.what()), "must be noexcept");
   swl::bad_variant_access ex;
-  assert(ex.what());
+  SWL_ASSERT(ex.what());
 
   SWL_END_TEST_SIGNAL 
  return 0; 

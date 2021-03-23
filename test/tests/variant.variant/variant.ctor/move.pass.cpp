@@ -101,9 +101,9 @@ template <class Variant> void makeEmpty(Variant &v) {
   Variant v2(swl::in_place_type<MakeEmptyT>);
   try {
     v = std::move(v2);
-    assert(false);
+    SWL_ASSERT(false);
   } catch (...) {
-    assert(v.valueless_by_exception());
+    SWL_ASSERT(v.valueless_by_exception());
   }
 }
 #endif // TEST_HAS_NO_EXCEPTIONS
@@ -174,44 +174,44 @@ void test_move_ctor_basic() {
   {
     swl::variant<int> v(swl::in_place_index<0>, 42);
     swl::variant<int> v2 = std::move(v);
-    assert(v2.index() == 0);
-    assert(swl::get<0>(v2) == 42);
+    SWL_ASSERT(v2.index() == 0);
+    SWL_ASSERT(swl::get<0>(v2) == 42);
   }
   {
     swl::variant<int, long> v(swl::in_place_index<1>, 42);
     swl::variant<int, long> v2 = std::move(v);
-    assert(v2.index() == 1);
-    assert(swl::get<1>(v2) == 42);
+    SWL_ASSERT(v2.index() == 1);
+    SWL_ASSERT(swl::get<1>(v2) == 42);
   }
   {
     swl::variant<MoveOnly> v(swl::in_place_index<0>, 42);
-    assert(v.index() == 0);
+    SWL_ASSERT(v.index() == 0);
     swl::variant<MoveOnly> v2(std::move(v));
-    assert(v2.index() == 0);
-    assert(swl::get<0>(v2).value == 42);
+    SWL_ASSERT(v2.index() == 0);
+    SWL_ASSERT(swl::get<0>(v2).value == 42);
   }
   {
     swl::variant<int, MoveOnly> v(swl::in_place_index<1>, 42);
-    assert(v.index() == 1);
+    SWL_ASSERT(v.index() == 1);
     swl::variant<int, MoveOnly> v2(std::move(v));
-    assert(v2.index() == 1);
-    assert(swl::get<1>(v2).value == 42);
+    SWL_ASSERT(v2.index() == 1);
+    SWL_ASSERT(swl::get<1>(v2).value == 42);
   }
   {
     swl::variant<MoveOnlyNT> v(swl::in_place_index<0>, 42);
-    assert(v.index() == 0);
+    SWL_ASSERT(v.index() == 0);
     swl::variant<MoveOnlyNT> v2(std::move(v));
-    assert(v2.index() == 0);
-    assert(swl::get<0>(v).value == -1);
-    assert(swl::get<0>(v2).value == 42);
+    SWL_ASSERT(v2.index() == 0);
+    SWL_ASSERT(swl::get<0>(v).value == -1);
+    SWL_ASSERT(swl::get<0>(v2).value == 42);
   }
   {
     swl::variant<int, MoveOnlyNT> v(swl::in_place_index<1>, 42);
-    assert(v.index() == 1);
+    SWL_ASSERT(v.index() == 1);
     swl::variant<int, MoveOnlyNT> v2(std::move(v));
-    assert(v2.index() == 1);
-    assert(swl::get<1>(v).value == -1);
-    assert(swl::get<1>(v2).value == 42);
+    SWL_ASSERT(v2.index() == 1);
+    SWL_ASSERT(swl::get<1>(v).value == -1);
+    SWL_ASSERT(swl::get<1>(v2).value == 42);
   }
 
   // Make sure we properly propagate triviality, which implies constexpr-ness (see P0602R4).
@@ -297,7 +297,7 @@ void test_move_ctor_valueless_by_exception() {
   V v1;
   makeEmpty(v1);
   V v(std::move(v1));
-  assert(v.valueless_by_exception());
+  SWL_ASSERT(v.valueless_by_exception());
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
 

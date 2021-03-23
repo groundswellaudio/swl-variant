@@ -51,27 +51,27 @@ struct MakeEmptyT {
   MakeEmptyT &operator=(MakeEmptyT &&) { throw 42; }
 };
 inline bool operator==(const MakeEmptyT &, const MakeEmptyT &) {
-  assert(false);
+  SWL_ASSERT(false);
   return false;
 }
 inline bool operator!=(const MakeEmptyT &, const MakeEmptyT &) {
-  assert(false);
+  SWL_ASSERT(false);
   return false;
 }
 inline bool operator<(const MakeEmptyT &, const MakeEmptyT &) {
-  assert(false);
+  SWL_ASSERT(false);
   return false;
 }
 inline bool operator<=(const MakeEmptyT &, const MakeEmptyT &) {
-  assert(false);
+  SWL_ASSERT(false);
   return false;
 }
 inline bool operator>(const MakeEmptyT &, const MakeEmptyT &) {
-  assert(false);
+  SWL_ASSERT(false);
   return false;
 }
 inline bool operator>=(const MakeEmptyT &, const MakeEmptyT &) {
-  assert(false);
+  SWL_ASSERT(false);
   return false;
 }
 
@@ -79,9 +79,9 @@ template <class Variant> void makeEmpty(Variant &v) {
   Variant v2(swl::in_place_type<MakeEmptyT>);
   try {
     v = std::move(v2);
-    assert(false);
+    SWL_ASSERT(false);
   } catch (...) {
-    assert(v.valueless_by_exception());
+    SWL_ASSERT(v.valueless_by_exception());
   }
 }
 #endif // TEST_HAS_NO_EXCEPTIONS
@@ -165,20 +165,20 @@ void test_equality() {
     V v1;
     V v2;
     makeEmpty(v2);
-    assert(!(v1 == v2));
-    assert(!(v2 == v1));
-    assert(v1 != v2);
-    assert(v2 != v1);
+    SWL_ASSERT(!(v1 == v2));
+    SWL_ASSERT(!(v2 == v1));
+    SWL_ASSERT(v1 != v2);
+    SWL_ASSERT(v2 != v1);
   }
   {
     using V = swl::variant<int, MakeEmptyT>;
     V v1;
     makeEmpty(v1);
     V v2;
-    assert(!(v1 == v2));
-    assert(!(v2 == v1));
-    assert(v1 != v2);
-    assert(v2 != v1);
+    SWL_ASSERT(!(v1 == v2));
+    SWL_ASSERT(!(v2 == v1));
+    SWL_ASSERT(v1 != v2);
+    SWL_ASSERT(v2 != v1);
   }
   {
     using V = swl::variant<int, MakeEmptyT>;
@@ -186,10 +186,10 @@ void test_equality() {
     makeEmpty(v1);
     V v2;
     makeEmpty(v2);
-    assert(v1 == v2);
-    assert(v2 == v1);
-    assert(!(v1 != v2));
-    assert(!(v2 != v1));
+    SWL_ASSERT(v1 == v2);
+    SWL_ASSERT(v2 == v1);
+    SWL_ASSERT(!(v1 != v2));
+    SWL_ASSERT(!(v2 != v1));
   }
 #endif
 }
@@ -251,14 +251,14 @@ void test_relational() {
     V v1;
     V v2;
     makeEmpty(v2);
-    assert(test_less(v1, v2, false, true));
+    SWL_ASSERT(test_less(v1, v2, false, true));
   }
   { // LHS.index() > RHS.index(), LHS is empty
     using V = swl::variant<int, MakeEmptyT>;
     V v1;
     makeEmpty(v1);
     V v2;
-    assert(test_less(v1, v2, true, false));
+    SWL_ASSERT(test_less(v1, v2, true, false));
   }
   { // LHS.index() == RHS.index(), LHS and RHS are empty
     using V = swl::variant<int, MakeEmptyT>;
@@ -266,7 +266,7 @@ void test_relational() {
     makeEmpty(v1);
     V v2;
     makeEmpty(v2);
-    assert(test_less(v1, v2, false, false));
+    SWL_ASSERT(test_less(v1, v2, false, false));
   }
 #endif
 }

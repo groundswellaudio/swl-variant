@@ -52,21 +52,21 @@ void test_const_get_if() {
     int x = 42;
     const V v(x);
     ASSERT_SAME_TYPE(decltype(swl::get_if<int &>(&v)), int *);
-    assert(swl::get_if<int &>(&v) == &x);
+    SWL_ASSERT(swl::get_if<int &>(&v) == &x);
   }
   {
     using V = swl::variant<int &&>;
     int x = 42;
     const V v(std::move(x));
     ASSERT_SAME_TYPE(decltype(swl::get_if<int &&>(&v)), int *);
-    assert(swl::get_if<int &&>(&v) == &x);
+    SWL_ASSERT(swl::get_if<int &&>(&v) == &x);
   }
   {
     using V = swl::variant<const int &&>;
     int x = 42;
     const V v(std::move(x));
     ASSERT_SAME_TYPE(decltype(swl::get_if<const int &&>(&v)), const int *);
-    assert(swl::get_if<const int &&>(&v) == &x);
+    SWL_ASSERT(swl::get_if<const int &&>(&v) == &x);
   }
 #endif
 }
@@ -75,22 +75,22 @@ void test_get_if() {
   {
     using V = swl::variant<int>;
     V *v = nullptr;
-    assert(swl::get_if<int>(v) == nullptr);
+    SWL_ASSERT(swl::get_if<int>(v) == nullptr);
   }
   {
     using V = swl::variant<int, const long>;
     V v(42);
     ASSERT_NOEXCEPT(swl::get_if<int>(&v));
     ASSERT_SAME_TYPE(decltype(swl::get_if<int>(&v)), int *);
-    assert(*swl::get_if<int>(&v) == 42);
-    assert(swl::get_if<const long>(&v) == nullptr);
+    SWL_ASSERT(*swl::get_if<int>(&v) == 42);
+    SWL_ASSERT(swl::get_if<const long>(&v) == nullptr);
   }
   {
     using V = swl::variant<int, const long>;
     V v(42l);
     ASSERT_SAME_TYPE(decltype(swl::get_if<const long>(&v)), const long *);
-    assert(*swl::get_if<const long>(&v) == 42);
-    assert(swl::get_if<int>(&v) == nullptr);
+    SWL_ASSERT(*swl::get_if<const long>(&v) == 42);
+    SWL_ASSERT(swl::get_if<int>(&v) == nullptr);
   }
 // FIXME: Remove these once reference support is reinstated
 #if !defined(TEST_VARIANT_HAS_NO_REFERENCES)
@@ -99,28 +99,28 @@ void test_get_if() {
     int x = 42;
     V v(x);
     ASSERT_SAME_TYPE(decltype(swl::get_if<int &>(&v)), int *);
-    assert(swl::get_if<int &>(&v) == &x);
+    SWL_ASSERT(swl::get_if<int &>(&v) == &x);
   }
   {
     using V = swl::variant<const int &>;
     int x = 42;
     V v(x);
     ASSERT_SAME_TYPE(decltype(swl::get_if<const int &>(&v)), const int *);
-    assert(swl::get_if<const int &>(&v) == &x);
+    SWL_ASSERT(swl::get_if<const int &>(&v) == &x);
   }
   {
     using V = swl::variant<int &&>;
     int x = 42;
     V v(std::move(x));
     ASSERT_SAME_TYPE(decltype(swl::get_if<int &&>(&v)), int *);
-    assert(swl::get_if<int &&>(&v) == &x);
+    SWL_ASSERT(swl::get_if<int &&>(&v) == &x);
   }
   {
     using V = swl::variant<const int &&>;
     int x = 42;
     V v(std::move(x));
     ASSERT_SAME_TYPE(decltype(swl::get_if<const int &&>(&v)), const int *);
-    assert(swl::get_if<const int &&>(&v) == &x);
+    SWL_ASSERT(swl::get_if<const int &&>(&v) == &x);
   }
 #endif
 }

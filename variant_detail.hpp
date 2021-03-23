@@ -309,12 +309,14 @@ namespace swap_trait {
 	inline constexpr bool nothrow = noexcept( swap(std::declval<A&>(), std::declval<A&>()) );
 }
 
+template <class T>
+using uncvref_t = std::remove_cvref_t<T>;
 
 #ifdef SWL_CPP_VARIANT_USE_STD_HASH
   
 template <class T>
 inline constexpr bool has_std_hash = requires (T t) { 
-	std::size_t( ::std::hash<T>{}(t) ); 
+	std::size_t( ::std::hash< uncvref_t<T> >{}(t) ); 
 };
 
 #endif

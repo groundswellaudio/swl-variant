@@ -7,6 +7,8 @@
 #include <new>
 #include <limits>
 
+#define SWL_CPP_VARIANT_USE_STD_HASH
+
 #ifdef SWL_CPP_VARIANT_USE_STD_HASH
 
 	// yeah, that's not great, but <functional> is an enormous header, so until modules are here...
@@ -20,7 +22,7 @@
 
 #endif
 
-//#define SWL_VARIANT_DEBUG
+#define SWL_VARIANT_DEBUG
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
@@ -558,7 +560,6 @@ constexpr const T* get_if(const variant<Ts...>* v) noexcept {
 
 // =============================== visitation (20.7.7)
 
-
 template <class Fn, class... Vs>
 	requires (is_variant<Vs> && ...)
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
@@ -567,8 +568,8 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 			throw bad_variant_access{"swl::variant : Bad variant access in visit."};
 				
 	if constexpr (sizeof...(Vs) == 1){
-		return [] (auto&& fn, auto&& head) { 
-			return decltype(head)(head).visit(static_cast<Fn&&>(fn));
+		return [] (auto&& fn, auto&& head) -> decltype(auto) { 
+			return ( decltype(head)(head).visit(static_cast<Fn&&>(fn)) );
 		} (static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
 	}
 	else {
@@ -686,15 +687,19 @@ namespace std {
 		requires (::swl::vimpl::has_std_hash<Ts> && ...)
 	struct hash<::swl::variant<Ts...>> {
 		std::size_t operator()(const ::swl::variant<Ts...>& v) const {
-			return ::swl::visit(v, [] (auto& elem) {
-				return std::hash<std::decay_t<decltype(elem)>>{}(elem);
+			if constexpr ( ::swl::variant<Ts...>::can_be_valueless )
+				if (v.valueless_by_exception()) return -1;
+			
+			return v.visit_with_index( [] (auto& elem, auto index_) {
+				using type = std::remove_cvref_t<decltype(elem)>;
+				return std::hash<type>{}(elem) + index_;
 			});
 		}
 	};
 
 	template <>
 	struct hash<::swl::monostate> {
-		constexpr std::size_t operator()(::swl::monostate) const noexcept { return 0; }
+		constexpr std::size_t operator()(::swl::monostate) const noexcept { return -1; }
 	};
 }
 

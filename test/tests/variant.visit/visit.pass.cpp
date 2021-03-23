@@ -36,37 +36,37 @@ void test_call_operator_forwarding() {
   const Fn &cobj = obj;
   { // test call operator forwarding - no variant
     swl::visit(obj);
-    assert(Fn::check_call<>(CT_NonConst | CT_LValue));
+    SWL_ASSERT(Fn::check_call<>(CT_NonConst | CT_LValue));
     swl::visit(cobj);
-    assert(Fn::check_call<>(CT_Const | CT_LValue));
+    SWL_ASSERT(Fn::check_call<>(CT_Const | CT_LValue));
     swl::visit(std::move(obj));
-    assert(Fn::check_call<>(CT_NonConst | CT_RValue));
+    SWL_ASSERT(Fn::check_call<>(CT_NonConst | CT_RValue));
     swl::visit(std::move(cobj));
-    assert(Fn::check_call<>(CT_Const | CT_RValue));
+    SWL_ASSERT(Fn::check_call<>(CT_Const | CT_RValue));
   }
   { // test call operator forwarding - single variant, single arg
     using V = swl::variant<int>;
     V v(42);
     swl::visit(obj, v);
-    assert(Fn::check_call<int &>(CT_NonConst | CT_LValue));
+    SWL_ASSERT(Fn::check_call<int &>(CT_NonConst | CT_LValue));
     swl::visit(cobj, v);
-    assert(Fn::check_call<int &>(CT_Const | CT_LValue));
+    SWL_ASSERT(Fn::check_call<int &>(CT_Const | CT_LValue));
     swl::visit(std::move(obj), v);
-    assert(Fn::check_call<int &>(CT_NonConst | CT_RValue));
+    SWL_ASSERT(Fn::check_call<int &>(CT_NonConst | CT_RValue));
     swl::visit(std::move(cobj), v);
-    assert(Fn::check_call<int &>(CT_Const | CT_RValue));
+    SWL_ASSERT(Fn::check_call<int &>(CT_Const | CT_RValue));
   }
   { // test call operator forwarding - single variant, multi arg
     using V = swl::variant<int, long, double>;
     V v(42l);
     swl::visit(obj, v);
-    assert(Fn::check_call<long &>(CT_NonConst | CT_LValue));
+    SWL_ASSERT(Fn::check_call<long &>(CT_NonConst | CT_LValue));
     swl::visit(cobj, v);
-    assert(Fn::check_call<long &>(CT_Const | CT_LValue));
+    SWL_ASSERT(Fn::check_call<long &>(CT_Const | CT_LValue));
     swl::visit(std::move(obj), v);
-    assert(Fn::check_call<long &>(CT_NonConst | CT_RValue));
+    SWL_ASSERT(Fn::check_call<long &>(CT_NonConst | CT_RValue));
     swl::visit(std::move(cobj), v);
-    assert(Fn::check_call<long &>(CT_Const | CT_RValue));
+    SWL_ASSERT(Fn::check_call<long &>(CT_Const | CT_RValue));
   }
   { // test call operator forwarding - multi variant, multi arg
     using V = swl::variant<int, long, double>;
@@ -74,37 +74,37 @@ void test_call_operator_forwarding() {
     V v(42l);
     V2 v2("hello");
     swl::visit(obj, v, v2);
-    assert((Fn::check_call<long &, std::string &>(CT_NonConst | CT_LValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &>(CT_NonConst | CT_LValue)));
     swl::visit(cobj, v, v2);
-    assert((Fn::check_call<long &, std::string &>(CT_Const | CT_LValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &>(CT_Const | CT_LValue)));
     swl::visit(std::move(obj), v, v2);
-    assert((Fn::check_call<long &, std::string &>(CT_NonConst | CT_RValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &>(CT_NonConst | CT_RValue)));
     swl::visit(std::move(cobj), v, v2);
-    assert((Fn::check_call<long &, std::string &>(CT_Const | CT_RValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &>(CT_Const | CT_RValue)));
   }
   {
     using V = swl::variant<int, long, double, std::string>;
     V v1(42l), v2("hello"), v3(101), v4(1.1);
     swl::visit(obj, v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int &, double &>(CT_NonConst | CT_LValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int &, double &>(CT_NonConst | CT_LValue)));
     swl::visit(cobj, v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int &, double &>(CT_Const | CT_LValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int &, double &>(CT_Const | CT_LValue)));
     swl::visit(std::move(obj), v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int &, double &>(CT_NonConst | CT_RValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int &, double &>(CT_NonConst | CT_RValue)));
     swl::visit(std::move(cobj), v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int &, double &>(CT_Const | CT_RValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int &, double &>(CT_Const | CT_RValue)));
   }
   {
     using V = swl::variant<int, long, double, int*, std::string>;
     V v1(42l), v2("hello"), v3(nullptr), v4(1.1);
     swl::visit(obj, v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int *&, double &>(CT_NonConst | CT_LValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int *&, double &>(CT_NonConst | CT_LValue)));
     swl::visit(cobj, v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int *&, double &>(CT_Const | CT_LValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int *&, double &>(CT_Const | CT_LValue)));
     swl::visit(std::move(obj), v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int *&, double &>(CT_NonConst | CT_RValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int *&, double &>(CT_NonConst | CT_RValue)));
     swl::visit(std::move(cobj), v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int *&, double &>(CT_Const | CT_RValue)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int *&, double &>(CT_Const | CT_RValue)));
   }
 }
 
@@ -117,13 +117,13 @@ void test_argument_forwarding() {
     V v(42);
     const V &cv = v;
     swl::visit(obj, v);
-    assert(Fn::check_call<int &>(Val));
+    SWL_ASSERT(Fn::check_call<int &>(Val));
     swl::visit(obj, cv);
-    assert(Fn::check_call<const int &>(Val));
+    SWL_ASSERT(Fn::check_call<const int &>(Val));
     swl::visit(obj, std::move(v));
-    assert(Fn::check_call<int &&>(Val));
+    SWL_ASSERT(Fn::check_call<int &&>(Val));
     swl::visit(obj, std::move(cv));
-    assert(Fn::check_call<const int &&>(Val));
+    SWL_ASSERT(Fn::check_call<const int &&>(Val));
   }
 #if !defined(TEST_VARIANT_HAS_NO_REFERENCES)
   { // single argument - lvalue reference
@@ -132,13 +132,13 @@ void test_argument_forwarding() {
     V v(x);
     const V &cv = v;
     swl::visit(obj, v);
-    assert(Fn::check_call<int &>(Val));
+    SWL_ASSERT(Fn::check_call<int &>(Val));
     swl::visit(obj, cv);
-    assert(Fn::check_call<int &>(Val));
+    SWL_ASSERT(Fn::check_call<int &>(Val));
     swl::visit(obj, std::move(v));
-    assert(Fn::check_call<int &>(Val));
+    SWL_ASSERT(Fn::check_call<int &>(Val));
     swl::visit(obj, std::move(cv));
-    assert(Fn::check_call<int &>(Val));
+    SWL_ASSERT(Fn::check_call<int &>(Val));
   }
   { // single argument - rvalue reference
     using V = swl::variant<int &&>;
@@ -146,38 +146,38 @@ void test_argument_forwarding() {
     V v(std::move(x));
     const V &cv = v;
     swl::visit(obj, v);
-    assert(Fn::check_call<int &>(Val));
+    SWL_ASSERT(Fn::check_call<int &>(Val));
     swl::visit(obj, cv);
-    assert(Fn::check_call<int &>(Val));
+    SWL_ASSERT(Fn::check_call<int &>(Val));
     swl::visit(obj, std::move(v));
-    assert(Fn::check_call<int &&>(Val));
+    SWL_ASSERT(Fn::check_call<int &&>(Val));
     swl::visit(obj, std::move(cv));
-    assert(Fn::check_call<int &&>(Val));
+    SWL_ASSERT(Fn::check_call<int &&>(Val));
   }
 #endif
   { // multi argument - multi variant
     using V = swl::variant<int, std::string, long>;
     V v1(42), v2("hello"), v3(43l);
     swl::visit(obj, v1, v2, v3);
-    assert((Fn::check_call<int &, std::string &, long &>(Val)));
+    SWL_ASSERT((Fn::check_call<int &, std::string &, long &>(Val)));
     swl::visit(obj, std::as_const(v1), std::as_const(v2), std::move(v3));
-    assert((Fn::check_call<const int &, const std::string &, long &&>(Val)));
+    SWL_ASSERT((Fn::check_call<const int &, const std::string &, long &&>(Val)));
   }
   {
     using V = swl::variant<int, long, double, std::string>;
     V v1(42l), v2("hello"), v3(101), v4(1.1);
     swl::visit(obj, v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int &, double &>(Val)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int &, double &>(Val)));
     swl::visit(obj, std::as_const(v1), std::as_const(v2), std::move(v3), std::move(v4));
-    assert((Fn::check_call<const long &, const std::string &, int &&, double &&>(Val)));
+    SWL_ASSERT((Fn::check_call<const long &, const std::string &, int &&, double &&>(Val)));
   }
   {
     using V = swl::variant<int, long, double, int*, std::string>;
     V v1(42l), v2("hello"), v3(nullptr), v4(1.1);
     swl::visit(obj, v1, v2, v3, v4);
-    assert((Fn::check_call<long &, std::string &, int *&, double &>(Val)));
+    SWL_ASSERT((Fn::check_call<long &, std::string &, int *&, double &>(Val)));
     swl::visit(obj, std::as_const(v1), std::as_const(v2), std::move(v3), std::move(v4));
-    assert((Fn::check_call<const long &, const std::string &, int *&&, double &&>(Val)));
+    SWL_ASSERT((Fn::check_call<const long &, const std::string &, int *&&, double &&>(Val)));
   }
 }
 
@@ -294,7 +294,7 @@ void test_exceptions() {
     using V = swl::variant<int, MakeEmptyT>;
     V v;
     makeEmpty(v);
-    assert(test(v));
+    SWL_ASSERT(test(v));
   }
   {
     using V = swl::variant<int, MakeEmptyT>;
@@ -302,7 +302,7 @@ void test_exceptions() {
     V v;
     makeEmpty(v);
     V2 v2("hello");
-    assert(test(v, v2));
+    SWL_ASSERT(test(v, v2));
   }
   {
     using V = swl::variant<int, MakeEmptyT>;
@@ -310,7 +310,7 @@ void test_exceptions() {
     V v;
     makeEmpty(v);
     V2 v2("hello");
-    assert(test(v2, v));
+    SWL_ASSERT(test(v2, v));
   }
   {
     using V = swl::variant<int, MakeEmptyT>;
@@ -319,13 +319,13 @@ void test_exceptions() {
     makeEmpty(v);
     V2 v2;
     makeEmpty(v2);
-    assert(test(v, v2));
+    SWL_ASSERT(test(v, v2));
   }
   {
     using V = swl::variant<int, long, double, MakeEmptyT>;
     V v1(42l), v2(101), v3(202), v4(1.1);
     makeEmpty(v1);
-    assert(test(v1, v2, v3, v4));
+    SWL_ASSERT(test(v1, v2, v3, v4));
   }
   {
     using V = swl::variant<int, long, double, long long, MakeEmptyT>;
@@ -334,7 +334,7 @@ void test_exceptions() {
     makeEmpty(v2);
     makeEmpty(v3);
     makeEmpty(v4);
-    assert(test(v1, v2, v3, v4));
+    SWL_ASSERT(test(v1, v2, v3, v4));
   }
 #endif
 }

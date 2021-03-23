@@ -84,22 +84,22 @@ void test_ctor_basic() {
     using V = swl::variant<const int, volatile int, int>;
     int x = 42;
     V v(swl::in_place_index<0>, x);
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == x);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == x);
   }
   {
     using V = swl::variant<const int, volatile int, int>;
     int x = 42;
     V v(swl::in_place_index<1>, x);
-    assert(v.index() == 1);
-    assert(swl::get<1>(v) == x);
+    SWL_ASSERT(v.index() == 1);
+    SWL_ASSERT(swl::get<1>(v) == x);
   }
   {
     using V = swl::variant<const int, volatile int, int>;
     int x = 42;
     V v(swl::in_place_index<2>, x);
-    assert(v.index() == 2);
-    assert(swl::get<2>(v) == x);
+    SWL_ASSERT(v.index() == 2);
+    SWL_ASSERT(swl::get<2>(v) == x);
   }
 }
 

@@ -35,7 +35,7 @@ int main(int, char**) {
   {
     using V = swl::variant<int, long>;
     V v;
-    assert(v.index() == 0);
+    SWL_ASSERT(v.index() == 0);
   }
   {
     using V = swl::variant<int, long>;
@@ -45,17 +45,17 @@ int main(int, char**) {
   {
     using V = swl::variant<int, std::string>;
     V v("abc");
-    assert(v.index() == 1);
+    SWL_ASSERT(v.index() == 1);
     v = 42;
-    assert(v.index() == 0);
+    SWL_ASSERT(v.index() == 0);
   }
 #ifndef TEST_HAS_NO_EXCEPTIONS
   {
     using V = swl::variant<int, MakeEmptyT>;
     V v;
-    assert(v.index() == 0);
+    SWL_ASSERT(v.index() == 0);
     makeEmpty(v);
-    assert(v.index() == swl::variant_npos);
+    SWL_ASSERT(v.index() == swl::variant_npos);
   }
 #endif
 

@@ -155,9 +155,9 @@ struct CopyCannotThrow {
   static int alive;
   CopyCannotThrow() { ++alive; }
   CopyCannotThrow(const CopyCannotThrow &) noexcept { ++alive; }
-  CopyCannotThrow(CopyCannotThrow &&) noexcept { assert(false); }
+  CopyCannotThrow(CopyCannotThrow &&) noexcept { SWL_ASSERT(false); }
   CopyCannotThrow &operator=(const CopyCannotThrow &) noexcept = default;
-  CopyCannotThrow &operator=(CopyCannotThrow &&) noexcept { assert(false); return *this; }
+  CopyCannotThrow &operator=(CopyCannotThrow &&) noexcept { SWL_ASSERT(false); return *this; }
 };
 
 int CopyCannotThrow::alive = 0;
@@ -194,9 +194,9 @@ template <class Variant> void makeEmpty(Variant &v) {
   Variant v2(swl::in_place_type<MakeEmptyT>);
   try {
     v = std::move(v2);
-    assert(false);
+    SWL_ASSERT(false);
   } catch (...) {
-    assert(v.valueless_by_exception());
+    SWL_ASSERT(v.valueless_by_exception());
   }
 }
 #endif // TEST_HAS_NO_EXCEPTIONS
@@ -270,9 +270,9 @@ void test_copy_assignment_empty_empty() {
     V v2(swl::in_place_index<0>);
     makeEmpty(v2);
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.valueless_by_exception());
-    // assert(v1.index() == swl::variant<int, float>::npos);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.valueless_by_exception());
+    // SWL_ASSERT(v1.index() == swl::variant<int, float>::npos);
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
@@ -286,9 +286,9 @@ void test_copy_assignment_non_empty_empty() {
     V v2(swl::in_place_index<0>);
     makeEmpty(v2);
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.valueless_by_exception());
-    // assert(v1.index() == swl::variant<int, float>::npos);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.valueless_by_exception());
+    // SWL_ASSERT(v1.index() == swl::variant<int, float>::npos);
   }
   {
     using V = swl::variant<int, MET, std::string>;
@@ -296,9 +296,9 @@ void test_copy_assignment_non_empty_empty() {
     V v2(swl::in_place_index<0>);
     makeEmpty(v2);
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.valueless_by_exception());
-    // assert(v1.index() == swl::variant<int, float>::npos);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.valueless_by_exception());
+    // SWL_ASSERT(v1.index() == swl::variant<int, float>::npos);
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
@@ -312,9 +312,9 @@ void test_copy_assignment_empty_non_empty() {
     makeEmpty(v1);
     V v2(swl::in_place_index<0>, 42);
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 0);
-    assert(swl::get<0>(v1) == 42);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 0);
+    SWL_ASSERT(swl::get<0>(v1) == 42);
   }
   {
     using V = swl::variant<int, MET, std::string>;
@@ -322,9 +322,9 @@ void test_copy_assignment_empty_non_empty() {
     makeEmpty(v1);
     V v2(swl::in_place_type<std::string>, "hello");
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 2);
-    assert(swl::get<2>(v1) == "hello");
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 2);
+    SWL_ASSERT(swl::get<2>(v1) == "hello");
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
@@ -337,18 +337,18 @@ void test_copy_assignment_same_index() {
     V v1(43);
     V v2(42);
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 0);
-    assert(swl::get<0>(v1) == 42);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 0);
+    SWL_ASSERT(swl::get<0>(v1) == 42);
   }
   {
     using V = swl::variant<int, long, unsigned>;
     V v1(43l);
     V v2(42l);
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 1);
-    assert(swl::get<1>(v1) == 42);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 1);
+    SWL_ASSERT(swl::get<1>(v1) == 42);
   }
   {
     using V = swl::variant<int, CopyAssign, unsigned>;
@@ -356,12 +356,12 @@ void test_copy_assignment_same_index() {
     V v2(swl::in_place_type<CopyAssign>, 42);
     CopyAssign::reset();
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 1);
-    assert(swl::get<1>(v1).value == 42);
-    assert(CopyAssign::copy_construct == 0);
-    assert(CopyAssign::move_construct == 0);
-    assert(CopyAssign::copy_assign == 1);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 1);
+    SWL_ASSERT(swl::get<1>(v1).value == 42);
+    SWL_ASSERT(CopyAssign::copy_construct == 0);
+    SWL_ASSERT(CopyAssign::move_construct == 0);
+    SWL_ASSERT(CopyAssign::copy_assign == 1);
   }
 #ifndef TEST_HAS_NO_EXCEPTIONS
   using MET = MakeEmptyT;
@@ -372,11 +372,11 @@ void test_copy_assignment_same_index() {
     V v2(swl::in_place_type<MET>);
     try {
       v1 = v2;
-      assert(false);
+      SWL_ASSERT(false);
     } catch (...) {
     }
-    assert(v1.index() == 1);
-    assert(&swl::get<1>(v1) == &mref);
+    SWL_ASSERT(v1.index() == 1);
+    SWL_ASSERT(&swl::get<1>(v1) == &mref);
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 
@@ -447,26 +447,26 @@ void test_copy_assignment_different_index() {
     V v1(43);
     V v2(42l);
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 1);
-    assert(swl::get<1>(v1) == 42);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 1);
+    SWL_ASSERT(swl::get<1>(v1) == 42);
   }
   {
     using V = swl::variant<int, CopyAssign, unsigned>;
     CopyAssign::reset();
     V v1(swl::in_place_type<unsigned>, 43u);
     V v2(swl::in_place_type<CopyAssign>, 42);
-    assert(CopyAssign::copy_construct == 0);
-    assert(CopyAssign::move_construct == 0);
-    assert(CopyAssign::alive == 1);
+    SWL_ASSERT(CopyAssign::copy_construct == 0);
+    SWL_ASSERT(CopyAssign::move_construct == 0);
+    SWL_ASSERT(CopyAssign::alive == 1);
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 1);
-    assert(swl::get<1>(v1).value == 42);
-    assert(CopyAssign::alive == 2);
-    assert(CopyAssign::copy_construct == 1);
-    assert(CopyAssign::move_construct == 1);
-    assert(CopyAssign::copy_assign == 0);
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 1);
+    SWL_ASSERT(swl::get<1>(v1).value == 42);
+    SWL_ASSERT(CopyAssign::alive == 2);
+    SWL_ASSERT(CopyAssign::copy_construct == 1);
+    SWL_ASSERT(CopyAssign::move_construct == 1);
+    SWL_ASSERT(CopyAssign::copy_assign == 0);
   }
 #ifndef TEST_HAS_NO_EXCEPTIONS
   {
@@ -475,56 +475,56 @@ void test_copy_assignment_different_index() {
     V v2(swl::in_place_type<CopyThrows>);
     try {
       v1 = v2;
-      assert(false);
+      SWL_ASSERT(false);
     } catch (...) { /* ... */
     }
     // Test that copy construction is used directly if move construction may throw,
     // resulting in a valueless variant if copy throws.
-    assert(v1.valueless_by_exception());
+    SWL_ASSERT(v1.valueless_by_exception());
   }
   {
     using V = swl::variant<int, MoveThrows, std::string>;
     V v1(swl::in_place_type<std::string>, "hello");
     V v2(swl::in_place_type<MoveThrows>);
-    assert(MoveThrows::alive == 1);
+    SWL_ASSERT(MoveThrows::alive == 1);
     // Test that copy construction is used directly if move construction may throw.
     v1 = v2;
-    assert(v1.index() == 1);
-    assert(v2.index() == 1);
-    assert(MoveThrows::alive == 2);
+    SWL_ASSERT(v1.index() == 1);
+    SWL_ASSERT(v2.index() == 1);
+    SWL_ASSERT(MoveThrows::alive == 2);
   }
   {
     // Test that direct copy construction is preferred when it cannot throw.
     using V = swl::variant<int, CopyCannotThrow, std::string>;
     V v1(swl::in_place_type<std::string>, "hello");
     V v2(swl::in_place_type<CopyCannotThrow>);
-    assert(CopyCannotThrow::alive == 1);
+    SWL_ASSERT(CopyCannotThrow::alive == 1);
     v1 = v2;
-    assert(v1.index() == 1);
-    assert(v2.index() == 1);
-    assert(CopyCannotThrow::alive == 2);
+    SWL_ASSERT(v1.index() == 1);
+    SWL_ASSERT(v2.index() == 1);
+    SWL_ASSERT(CopyCannotThrow::alive == 2);
   }
   {
     using V = swl::variant<int, CopyThrows, std::string>;
     V v1(swl::in_place_type<CopyThrows>);
     V v2(swl::in_place_type<std::string>, "hello");
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 2);
-    assert(swl::get<2>(v1) == "hello");
-    assert(v2.index() == 2);
-    assert(swl::get<2>(v2) == "hello");
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 2);
+    SWL_ASSERT(swl::get<2>(v1) == "hello");
+    SWL_ASSERT(v2.index() == 2);
+    SWL_ASSERT(swl::get<2>(v2) == "hello");
   }
   {
     using V = swl::variant<int, MoveThrows, std::string>;
     V v1(swl::in_place_type<MoveThrows>);
     V v2(swl::in_place_type<std::string>, "hello");
     V &vref = (v1 = v2);
-    assert(&vref == &v1);
-    assert(v1.index() == 2);
-    assert(swl::get<2>(v1) == "hello");
-    assert(v2.index() == 2);
-    assert(swl::get<2>(v2) == "hello");
+    SWL_ASSERT(&vref == &v1);
+    SWL_ASSERT(v1.index() == 2);
+    SWL_ASSERT(swl::get<2>(v1) == "hello");
+    SWL_ASSERT(v2.index() == 2);
+    SWL_ASSERT(swl::get<2>(v2) == "hello");
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 

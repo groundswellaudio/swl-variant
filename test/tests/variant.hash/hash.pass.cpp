@@ -27,7 +27,7 @@
 namespace std {
 template <> struct hash<::MakeEmptyT> {
   size_t operator()(const ::MakeEmptyT &) const {
-    assert(false);
+    SWL_ASSERT(false);
     return 0;
   }
 };
@@ -42,9 +42,9 @@ void test_hash_variant() {
     const V v_copy = v;
     V v2(swl::in_place_index<0>, 100);
     const H h{};
-    assert(h(v) == h(v));
-    assert(h(v) != h(v2));
-    assert(h(v) == h(v_copy));
+    SWL_ASSERT(h(v) == h(v));
+    SWL_ASSERT(h(v) != h(v2));
+    SWL_ASSERT(h(v) == h(v_copy));
     {
       ASSERT_SAME_TYPE(decltype(h(v)), std::size_t);
       static_assert(std::is_copy_constructible<H>::value, "");
@@ -63,20 +63,20 @@ void test_hash_variant() {
     V v3(str);
     V v3_other("not hello");
     const H h{};
-    assert(h(v0) == h(v0));
-    assert(h(v0) == h(v0_other));
-    assert(h(v1) == h(v1));
-    assert(h(v1) != h(v1_other));
-    assert(h(v2) == h(v2));
-    assert(h(v2) != h(v2_other));
-    assert(h(v3) == h(v3));
-    assert(h(v3) != h(v3_other));
-    assert(h(v0) != h(v1));
-    assert(h(v0) != h(v2));
-    assert(h(v0) != h(v3));
-    assert(h(v1) != h(v2));
-    assert(h(v1) != h(v3));
-    assert(h(v2) != h(v3));
+    SWL_ASSERT(h(v0) == h(v0));
+    SWL_ASSERT(h(v0) == h(v0_other));
+    SWL_ASSERT(h(v1) == h(v1));
+    SWL_ASSERT(h(v1) != h(v1_other));
+    SWL_ASSERT(h(v2) == h(v2));
+    SWL_ASSERT(h(v2) != h(v2_other));
+    SWL_ASSERT(h(v3) == h(v3));
+    SWL_ASSERT(h(v3) != h(v3_other));
+    SWL_ASSERT(h(v0) != h(v1));
+    SWL_ASSERT(h(v0) != h(v2));
+    SWL_ASSERT(h(v0) != h(v3));
+    SWL_ASSERT(h(v1) != h(v2));
+    SWL_ASSERT(h(v1) != h(v3));
+    SWL_ASSERT(h(v2) != h(v3));
   }
 #ifndef TEST_HAS_NO_EXCEPTIONS
   {
@@ -87,7 +87,7 @@ void test_hash_variant() {
     V v2;
     makeEmpty(v2);
     const H h{};
-    assert(h(v) == h(v2));
+    SWL_ASSERT(h(v) == h(v2));
   }
 #endif
 }
@@ -97,9 +97,9 @@ void test_hash_monostate() {
   const H h{};
   swl::monostate m1{};
   const swl::monostate m2{};
-  assert(h(m1) == h(m1));
-  assert(h(m2) == h(m2));
-  assert(h(m1) == h(m2));
+  SWL_ASSERT(h(m1) == h(m1));
+  SWL_ASSERT(h(m2) == h(m2));
+  SWL_ASSERT(h(m1) == h(m2));
   {
     ASSERT_SAME_TYPE(decltype(h(m1)), std::size_t);
     ASSERT_NOEXCEPT(h(m1));
@@ -117,8 +117,8 @@ void test_hash_variant_duplicate_elements() {
     H h{};
     const V v1(swl::in_place_index<0>);
     const V v2(swl::in_place_index<1>);
-    assert(h(v1) == h(v1));
-    assert(h(v2) == h(v2));
+    SWL_ASSERT(h(v1) == h(v1));
+    SWL_ASSERT(h(v2) == h(v2));
     LIBCPP_ASSERT(h(v1) != h(v2));
 }
 
@@ -137,6 +137,7 @@ struct hash<B> {
 }
 
 void test_hash_variant_enabled() {
+
   {
     test_hash_enabled_for_type<swl::variant<int> >();
     test_hash_enabled_for_type<swl::variant<int*, long, double, const int> >();
@@ -150,6 +151,7 @@ void test_hash_variant_enabled() {
     test_hash_enabled_for_type<swl::variant<const B, int>>();
   }
 }
+
 
 int main(int, char**) {
   test_hash_variant();

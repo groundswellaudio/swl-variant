@@ -55,22 +55,22 @@ int main(int, char**) {
     static_assert(!std::is_trivially_destructible<V>::value, "");
     {
       V v(swl::in_place_index<0>);
-      assert(NonTDtor::count == 0);
-      assert(NonTDtor1::count == 0);
+      SWL_ASSERT(NonTDtor::count == 0);
+      SWL_ASSERT(NonTDtor1::count == 0);
     }
-    assert(NonTDtor::count == 1);
-    assert(NonTDtor1::count == 0);
+    SWL_ASSERT(NonTDtor::count == 1);
+    SWL_ASSERT(NonTDtor1::count == 0);
     NonTDtor::count = 0;
     { V v(swl::in_place_index<1>); }
-    assert(NonTDtor::count == 0);
-    assert(NonTDtor1::count == 0);
+    SWL_ASSERT(NonTDtor::count == 0);
+    SWL_ASSERT(NonTDtor1::count == 0);
     {
       V v(swl::in_place_index<2>);
-      assert(NonTDtor::count == 0);
-      assert(NonTDtor1::count == 0);
+      SWL_ASSERT(NonTDtor::count == 0);
+      SWL_ASSERT(NonTDtor1::count == 0);
     }
-    assert(NonTDtor::count == 0);
-    assert(NonTDtor1::count == 1);
+    SWL_ASSERT(NonTDtor::count == 0);
+    SWL_ASSERT(NonTDtor1::count == 1);
   }
 
   SWL_END_TEST_SIGNAL 

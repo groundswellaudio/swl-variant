@@ -35,20 +35,20 @@ int main(int, char**) {
   {
     using V = swl::variant<int, long>;
     V v;
-    assert(!v.valueless_by_exception());
+    SWL_ASSERT(!v.valueless_by_exception());
   }
   {
     using V = swl::variant<int, long, std::string>;
     const V v("abc");
-    assert(!v.valueless_by_exception());
+    SWL_ASSERT(!v.valueless_by_exception());
   }
 #ifndef TEST_HAS_NO_EXCEPTIONS
   {
     using V = swl::variant<int, MakeEmptyT>;
     V v;
-    assert(!v.valueless_by_exception());
+    SWL_ASSERT(!v.valueless_by_exception());
     makeEmpty(v);
-    assert(v.valueless_by_exception());
+    SWL_ASSERT(v.valueless_by_exception());
   }
 #endif
 

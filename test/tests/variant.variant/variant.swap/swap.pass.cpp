@@ -80,7 +80,7 @@ struct NothrowTypeImp {
   NothrowTypeImp() = default;
   explicit NothrowTypeImp(int v) : value(v) {}
   NothrowTypeImp(const NothrowTypeImp &o) noexcept(NT_Copy) : value(o.value) {
-    assert(false);
+    SWL_ASSERT(false);
   } // never called by test
   NothrowTypeImp(NothrowTypeImp &&o) noexcept(NT_Move) : value(o.value) {
     ++move_called;
@@ -88,7 +88,7 @@ struct NothrowTypeImp {
     o.value = -1;
   }
   NothrowTypeImp &operator=(const NothrowTypeImp &) noexcept(NT_CopyAssign) {
-    assert(false);
+    SWL_ASSERT(false);
     return *this;
   } // never called by the tests
   NothrowTypeImp &operator=(NothrowTypeImp &&o) noexcept(NT_MoveAssign) {
@@ -160,7 +160,7 @@ struct NonThrowingNonNoexceptType {
   }
   NonThrowingNonNoexceptType &
   operator=(NonThrowingNonNoexceptType &&) noexcept(false) {
-    assert(false); // never called by the tests.
+    SWL_ASSERT(false); // never called by the tests.
     return *this;
   }
   int value;
@@ -178,7 +178,7 @@ struct ThrowsOnSecondMove {
     o.value = -1;
   }
   ThrowsOnSecondMove &operator=(ThrowsOnSecondMove &&) {
-    assert(false); // not called by test
+    SWL_ASSERT(false); // not called by test
     return *this;
   }
 };
@@ -193,19 +193,19 @@ void test_swap_valueless_by_exception() {
     makeEmpty(v1);
     V v2;
     makeEmpty(v2);
-    assert(MakeEmptyT::alive == 0);
+    SWL_ASSERT(MakeEmptyT::alive == 0);
     { // member swap
       v1.swap(v2);
-      assert(v1.valueless_by_exception());
-      assert(v2.valueless_by_exception());
-      assert(MakeEmptyT::alive == 0);
+      SWL_ASSERT(v1.valueless_by_exception());
+      SWL_ASSERT(v2.valueless_by_exception());
+      SWL_ASSERT(MakeEmptyT::alive == 0);
     }
     puts("aye");
     { // non-member swap
       swap(v1, v2);
-      assert(v1.valueless_by_exception());
-      assert(v2.valueless_by_exception());
-      assert(MakeEmptyT::alive == 0);
+      SWL_ASSERT(v1.valueless_by_exception());
+      SWL_ASSERT(v2.valueless_by_exception());
+      SWL_ASSERT(MakeEmptyT::alive == 0);
     }
   }
   puts("exc-2");
@@ -215,21 +215,21 @@ void test_swap_valueless_by_exception() {
     makeEmpty(v2);
     { // member swap
       v1.swap(v2);
-      assert(v1.valueless_by_exception());
-      assert(swl::get<0>(v2) == 42);
+      SWL_ASSERT(v1.valueless_by_exception());
+      SWL_ASSERT(swl::get<0>(v2) == 42);
       // swap again
       v2.swap(v1);
-      assert(v2.valueless_by_exception());
-      assert(swl::get<0>(v1) == 42);
+      SWL_ASSERT(v2.valueless_by_exception());
+      SWL_ASSERT(swl::get<0>(v1) == 42);
     }
     { // non-member swap
       swap(v1, v2);
-      assert(v1.valueless_by_exception());
-      assert(swl::get<0>(v2) == 42);
+      SWL_ASSERT(v1.valueless_by_exception());
+      SWL_ASSERT(swl::get<0>(v2) == 42);
       // swap again
       swap(v1, v2);
-      assert(v2.valueless_by_exception());
-      assert(swl::get<0>(v1) == 42);
+      SWL_ASSERT(v2.valueless_by_exception());
+      SWL_ASSERT(swl::get<0>(v1) == 42);
     }
   }
 #endif
@@ -243,13 +243,13 @@ void test_swap_same_alternative() {
     V v1(swl::in_place_index<0>, 42);
     V v2(swl::in_place_index<0>, 100);
     v1.swap(v2);
-    assert(T::swap_called == 1);
-    assert(swl::get<0>(v1).value == 100);
-    assert(swl::get<0>(v2).value == 42);
+    SWL_ASSERT(T::swap_called == 1);
+    SWL_ASSERT(swl::get<0>(v1).value == 100);
+    SWL_ASSERT(swl::get<0>(v2).value == 42);
     swap(v1, v2);
-    assert(T::swap_called == 2);
-    assert(swl::get<0>(v1).value == 42);
-    assert(swl::get<0>(v2).value == 100);
+    SWL_ASSERT(T::swap_called == 2);
+    SWL_ASSERT(swl::get<0>(v1).value == 42);
+    SWL_ASSERT(swl::get<0>(v2).value == 100);
   }
   {
     using T = NothrowMoveable;
@@ -258,18 +258,18 @@ void test_swap_same_alternative() {
     V v1(swl::in_place_index<0>, 42);
     V v2(swl::in_place_index<0>, 100);
     v1.swap(v2);
-    assert(T::swap_called == 0);
-    assert(T::move_called == 1);
-    assert(T::move_assign_called == 2);
-    assert(swl::get<0>(v1).value == 100);
-    assert(swl::get<0>(v2).value == 42);
+    SWL_ASSERT(T::swap_called == 0);
+    SWL_ASSERT(T::move_called == 1);
+    SWL_ASSERT(T::move_assign_called == 2);
+    SWL_ASSERT(swl::get<0>(v1).value == 100);
+    SWL_ASSERT(swl::get<0>(v2).value == 42);
     T::reset();
     swap(v1, v2);
-    assert(T::swap_called == 0);
-    assert(T::move_called == 1);
-    assert(T::move_assign_called == 2);
-    assert(swl::get<0>(v1).value == 42);
-    assert(swl::get<0>(v2).value == 100);
+    SWL_ASSERT(T::swap_called == 0);
+    SWL_ASSERT(T::move_called == 1);
+    SWL_ASSERT(T::move_assign_called == 2);
+    SWL_ASSERT(swl::get<0>(v1).value == 42);
+    SWL_ASSERT(swl::get<0>(v2).value == 100);
   }
 #ifndef TEST_HAS_NO_EXCEPTIONS
   {
@@ -280,14 +280,14 @@ void test_swap_same_alternative() {
     V v2(swl::in_place_index<0>, 100);
     try {
       v1.swap(v2);
-      assert(false);
+      SWL_ASSERT(false);
     } catch (int) {
     }
-    assert(T::swap_called == 1);
-    assert(T::move_called == 0);
-    assert(T::move_assign_called == 0);
-    assert(swl::get<0>(v1).value == 42);
-    assert(swl::get<0>(v2).value == 100);
+    SWL_ASSERT(T::swap_called == 1);
+    SWL_ASSERT(T::move_called == 0);
+    SWL_ASSERT(T::move_assign_called == 0);
+    SWL_ASSERT(swl::get<0>(v1).value == 42);
+    SWL_ASSERT(swl::get<0>(v2).value == 100);
   }
   {
     using T = ThrowingMoveCtor;
@@ -297,14 +297,14 @@ void test_swap_same_alternative() {
     V v2(swl::in_place_index<0>, 100);
     try {
       v1.swap(v2);
-      assert(false);
+      SWL_ASSERT(false);
     } catch (int) {
     }
-    assert(T::move_called == 1); // call threw
-    assert(T::move_assign_called == 0);
-    assert(swl::get<0>(v1).value ==
+    SWL_ASSERT(T::move_called == 1); // call threw
+    SWL_ASSERT(T::move_assign_called == 0);
+    SWL_ASSERT(swl::get<0>(v1).value ==
            42); // throw happened before v1 was moved from
-    assert(swl::get<0>(v2).value == 100);
+    SWL_ASSERT(swl::get<0>(v2).value == 100);
   }
   {
     using T = ThrowingMoveAssignNothrowMoveCtor;
@@ -314,13 +314,13 @@ void test_swap_same_alternative() {
     V v2(swl::in_place_index<0>, 100);
     try {
       v1.swap(v2);
-      assert(false);
+      SWL_ASSERT(false);
     } catch (int) {
     }
-    assert(T::move_called == 1);
-    assert(T::move_assign_called == 1);  // call threw and didn't complete
-    assert(swl::get<0>(v1).value == -1); // v1 was moved from
-    assert(swl::get<0>(v2).value == 100);
+    SWL_ASSERT(T::move_called == 1);
+    SWL_ASSERT(T::move_assign_called == 1);  // call threw and didn't complete
+    SWL_ASSERT(swl::get<0>(v1).value == -1); // v1 was moved from
+    SWL_ASSERT(swl::get<0>(v2).value == 100);
   }
 #endif
 }
@@ -333,22 +333,22 @@ void test_swap_different_alternatives() {
     V v1(swl::in_place_index<0>, 42);
     V v2(swl::in_place_index<1>, 100);
     v1.swap(v2);
-    assert(T::swap_called == 0);
+    SWL_ASSERT(T::swap_called == 0);
     // The libc++ implementation double copies the argument, and not
     // the variant swap is called on.
     LIBCPP_ASSERT(T::move_called == 1);
-    assert(T::move_called <= 2);
-    assert(T::move_assign_called == 0);
-    assert(swl::get<1>(v1) == 100);
-    assert(swl::get<0>(v2).value == 42);
+    SWL_ASSERT(T::move_called <= 2);
+    SWL_ASSERT(T::move_assign_called == 0);
+    SWL_ASSERT(swl::get<1>(v1) == 100);
+    SWL_ASSERT(swl::get<0>(v2).value == 42);
     T::reset();
     swap(v1, v2);
-    assert(T::swap_called == 0);
+    SWL_ASSERT(T::swap_called == 0);
     LIBCPP_ASSERT(T::move_called == 2);
-    assert(T::move_called <= 2);
-    assert(T::move_assign_called == 0);
-    assert(swl::get<0>(v1).value == 42);
-    assert(swl::get<1>(v2) == 100);
+    SWL_ASSERT(T::move_called <= 2);
+    SWL_ASSERT(T::move_assign_called == 0);
+    SWL_ASSERT(swl::get<0>(v1).value == 42);
+    SWL_ASSERT(swl::get<1>(v2) == 100);
   }
 #ifndef TEST_HAS_NO_EXCEPTIONS
   {
@@ -361,20 +361,20 @@ void test_swap_different_alternatives() {
     V v2(swl::in_place_index<1>, 100);
     try {
       v1.swap(v2);
-      assert(false);
+      SWL_ASSERT(false);
     } catch (int) {
     }
-    assert(T1::swap_called == 0);
-    assert(T1::move_called == 1); // throws
-    assert(T1::move_assign_called == 0);
+    SWL_ASSERT(T1::swap_called == 0);
+    SWL_ASSERT(T1::move_called == 1); // throws
+    SWL_ASSERT(T1::move_assign_called == 0);
     // FIXME: libc++ shouldn't move from T2 here.
     LIBCPP_ASSERT(T2::move_called == 1);
-    assert(T2::move_called <= 1);
-    assert(swl::get<0>(v1).value == 42);
+    SWL_ASSERT(T2::move_called <= 1);
+    SWL_ASSERT(swl::get<0>(v1).value == 42);
     if (T2::move_called != 0)
-      assert(v2.valueless_by_exception());
+      SWL_ASSERT(v2.valueless_by_exception());
     else
-      assert(swl::get<1>(v2).value == 100);
+      SWL_ASSERT(swl::get<1>(v2).value == 100);
   }
   {
     using T1 = NonThrowingNonNoexceptType;
@@ -386,19 +386,19 @@ void test_swap_different_alternatives() {
     V v2(swl::in_place_index<1>, 100);
     try {
       v1.swap(v2);
-      assert(false);
+      SWL_ASSERT(false);
     } catch (int) {
     }
     LIBCPP_ASSERT(T1::move_called == 0);
-    assert(T1::move_called <= 1);
-    assert(T2::swap_called == 0);
-    assert(T2::move_called == 1); // throws
-    assert(T2::move_assign_called == 0);
+    SWL_ASSERT(T1::move_called <= 1);
+    SWL_ASSERT(T2::swap_called == 0);
+    SWL_ASSERT(T2::move_called == 1); // throws
+    SWL_ASSERT(T2::move_assign_called == 0);
     if (T1::move_called != 0)
-      assert(v1.valueless_by_exception());
+      SWL_ASSERT(v1.valueless_by_exception());
     else
-      assert(swl::get<0>(v1).value == 42);
-    assert(swl::get<1>(v2).value == 100);
+      SWL_ASSERT(swl::get<0>(v1).value == 42);
+    SWL_ASSERT(swl::get<1>(v2).value == 100);
   }
 // FIXME: The tests below are just very libc++ specific
 #ifdef _LIBCPP_VERSION
@@ -410,10 +410,10 @@ void test_swap_different_alternatives() {
     V v1(swl::in_place_index<0>, 42);
     V v2(swl::in_place_index<1>, 100);
     v1.swap(v2);
-    assert(T2::move_called == 2);
-    assert(swl::get<1>(v1).value == 100);
-    assert(swl::get<0>(v2).value == 42);
-    assert(swl::get<0>(v2).move_count == 1);
+    SWL_ASSERT(T2::move_called == 2);
+    SWL_ASSERT(swl::get<1>(v1).value == 100);
+    SWL_ASSERT(swl::get<0>(v2).value == 42);
+    SWL_ASSERT(swl::get<0>(v2).move_count == 1);
   }
   {
     using T1 = NonThrowingNonNoexceptType;
@@ -424,12 +424,12 @@ void test_swap_different_alternatives() {
     V v2(swl::in_place_index<1>, 100);
     try {
       v1.swap(v2);
-      assert(false);
+      SWL_ASSERT(false);
     } catch (int) {
     }
-    assert(T1::move_called == 1);
-    assert(v1.valueless_by_exception());
-    assert(swl::get<0>(v2).value == 42);
+    SWL_ASSERT(T1::move_called == 1);
+    SWL_ASSERT(v1.valueless_by_exception());
+    SWL_ASSERT(swl::get<0>(v2).value == 42);
   }
 #endif
 // testing libc++ extension. If either variant stores a nothrow move
@@ -447,33 +447,33 @@ void test_swap_different_alternatives() {
     V v2(swl::in_place_index<1>, 100);
     try {
       v1.swap(v2);
-      assert(false);
+      SWL_ASSERT(false);
     } catch (int) {
     }
-    assert(T1::swap_called == 0);
-    assert(T1::move_called == 1);
-    assert(T1::move_assign_called == 0);
-    assert(T2::swap_called == 0);
-    assert(T2::move_called == 2);
-    assert(T2::move_assign_called == 0);
-    assert(swl::get<0>(v1).value == 42);
-    assert(swl::get<1>(v2).value == 100);
+    SWL_ASSERT(T1::swap_called == 0);
+    SWL_ASSERT(T1::move_called == 1);
+    SWL_ASSERT(T1::move_assign_called == 0);
+    SWL_ASSERT(T2::swap_called == 0);
+    SWL_ASSERT(T2::move_called == 2);
+    SWL_ASSERT(T2::move_assign_called == 0);
+    SWL_ASSERT(swl::get<0>(v1).value == 42);
+    SWL_ASSERT(swl::get<1>(v2).value == 100);
     // swap again, but call v2's swap.
     T1::reset();
     T2::reset();
     try {
       v2.swap(v1);
-      assert(false);
+      SWL_ASSERT(false);
     } catch (int) {
     }
-    assert(T1::swap_called == 0);
-    assert(T1::move_called == 1);
-    assert(T1::move_assign_called == 0);
-    assert(T2::swap_called == 0);
-    assert(T2::move_called == 2);
-    assert(T2::move_assign_called == 0);
-    assert(swl::get<0>(v1).value == 42);
-    assert(swl::get<1>(v2).value == 100);
+    SWL_ASSERT(T1::swap_called == 0);
+    SWL_ASSERT(T1::move_called == 1);
+    SWL_ASSERT(T1::move_assign_called == 0);
+    SWL_ASSERT(T2::swap_called == 0);
+    SWL_ASSERT(T2::move_called == 2);
+    SWL_ASSERT(T2::move_assign_called == 0);
+    SWL_ASSERT(swl::get<0>(v1).value == 42);
+    SWL_ASSERT(swl::get<1>(v2).value == 100);
   }
 #endif // _LIBCPP_VERSION
 #endif

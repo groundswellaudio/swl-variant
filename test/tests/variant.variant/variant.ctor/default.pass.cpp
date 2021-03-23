@@ -76,11 +76,11 @@ void test_default_ctor_throws() {
   using V = swl::variant<DefaultCtorThrows, int>;
   try {
     V v;
-    assert(false);
+    SWL_ASSERT(false);
   } catch (const int &ex) {
-    assert(ex == 42);
+    SWL_ASSERT(ex == 42);
   } catch (...) {
-    assert(false);
+    SWL_ASSERT(false);
   }
 #endif
 }
@@ -88,18 +88,18 @@ void test_default_ctor_throws() {
 void test_default_ctor_basic() {
   {
     swl::variant<int> v;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == 0);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == 0);
   }
   {
     swl::variant<int, long> v;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == 0);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == 0);
   }
   {
     swl::variant<int, NonDefaultConstructible> v;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == 0);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == 0);
   }
   {
     using V = swl::variant<int, long>;

@@ -71,8 +71,8 @@ struct ThrowsCtorT {
 struct MoveCrashes {
   int value;
   MoveCrashes(int v = 0) noexcept : value{v} {}
-  MoveCrashes(MoveCrashes &&) noexcept { assert(false); }
-  MoveCrashes &operator=(MoveCrashes &&) noexcept { assert(false); return *this; }
+  MoveCrashes(MoveCrashes &&) noexcept { SWL_ASSERT(false); }
+  MoveCrashes &operator=(MoveCrashes &&) noexcept { SWL_ASSERT(false); return *this; }
   MoveCrashes &operator=(int v) noexcept {
     value = v;
     return *this;
@@ -83,7 +83,7 @@ struct ThrowsCtorTandMove {
   int value;
   ThrowsCtorTandMove() : value(0) {}
   ThrowsCtorTandMove(int) noexcept(false) { throw 42; }
-  ThrowsCtorTandMove(ThrowsCtorTandMove &&) noexcept(false) { assert(false); }
+  ThrowsCtorTandMove(ThrowsCtorTandMove &&) noexcept(false) { SWL_ASSERT(false); }
   ThrowsCtorTandMove &operator=(int v) noexcept {
     value = v;
     return *this;
@@ -182,50 +182,50 @@ void test_T_assignment_basic() {
   {
     swl::variant<int> v(43);
     v = 42;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == 42);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == 42);
   }
   {
     swl::variant<int, long> v(43l);
     v = 42;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == 42);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == 42);
     v = 43l;
-    assert(v.index() == 1);
-    assert(swl::get<1>(v) == 43);
+    SWL_ASSERT(v.index() == 1);
+    SWL_ASSERT(swl::get<1>(v) == 43);
   }
 #ifndef TEST_VARIANT_ALLOWS_NARROWING_CONVERSIONS
   {
     swl::variant<unsigned, long> v;
     v = 42;
-    assert(v.index() == 1);
-    assert(swl::get<1>(v) == 42);
+    SWL_ASSERT(v.index() == 1);
+    SWL_ASSERT(swl::get<1>(v) == 42);
     v = 43u;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == 43);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == 43);
   }
 #endif
   {
     swl::variant<std::string, bool> v = true;
     v = "bar";
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == "bar");
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == "bar");
   }
   {
     swl::variant<bool, std::unique_ptr<int>> v;
     v = nullptr;
-    assert(v.index() == 1);
-    assert(swl::get<1>(v) == nullptr);
+    SWL_ASSERT(v.index() == 1);
+    SWL_ASSERT(swl::get<1>(v) == nullptr);
   }
   {
     swl::variant<bool volatile, int> v = 42;
     v = false;
-    assert(v.index() == 0);
-    assert(!swl::get<0>(v));
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(!swl::get<0>(v));
     bool lvt = true;
     v = lvt;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v));
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v));
   }
 #if !defined(TEST_VARIANT_HAS_NO_REFERENCES)
   {
@@ -233,17 +233,17 @@ void test_T_assignment_basic() {
     int x = 42;
     V v(43l);
     v = x;
-    assert(v.index() == 0);
-    assert(&swl::get<0>(v) == &x);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(&swl::get<0>(v) == &x);
     v = std::move(x);
-    assert(v.index() == 1);
-    assert(&swl::get<1>(v) == &x);
+    SWL_ASSERT(v.index() == 1);
+    SWL_ASSERT(&swl::get<1>(v) == &x);
     // 'long' is selected by FUN(const int &) since 'const int &' cannot bind
     // to 'int&'.
     const int &cx = x;
     v = cx;
-    assert(v.index() == 2);
-    assert(swl::get<2>(v) == 42);
+    SWL_ASSERT(v.index() == 2);
+    SWL_ASSERT(swl::get<2>(v) == 42);
   }
 #endif // TEST_VARIANT_HAS_NO_REFERENCES
 }
@@ -256,18 +256,18 @@ void test_T_assignment_performs_construction() {
     V v(swl::in_place_type<std::string>, "hello");
     try {
       v = 42;
-      assert(false);
+      SWL_ASSERT(false);
     } catch (...) { /* ... */
     }
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == "hello");
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == "hello");
   }
   {
     using V = swl::variant<ThrowsAssignT, std::string>;
     V v(swl::in_place_type<std::string>, "hello");
     v = 42;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v).value == 42);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v).value == 42);
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
@@ -279,37 +279,37 @@ void test_T_assignment_performs_assignment() {
     using V = swl::variant<ThrowsCtorT>;
     V v;
     v = 42;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v).value == 42);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v).value == 42);
   }
   {
     using V = swl::variant<ThrowsCtorT, std::string>;
     V v;
     v = 42;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v).value == 42);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v).value == 42);
   }
   {
     using V = swl::variant<ThrowsAssignT>;
     V v(100);
     try {
       v = 42;
-      assert(false);
+      SWL_ASSERT(false);
     } catch (...) { /* ... */
     }
-    assert(v.index() == 0);
-    assert(swl::get<0>(v).value == 100);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v).value == 100);
   }
   {
     using V = swl::variant<std::string, ThrowsAssignT>;
     V v(100);
     try {
       v = 42;
-      assert(false);
+      SWL_ASSERT(false);
     } catch (...) { /* ... */
     }
-    assert(v.index() == 1);
-    assert(swl::get<1>(v).value == 100);
+    SWL_ASSERT(v.index() == 1);
+    SWL_ASSERT(swl::get<1>(v).value == 100);
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
 }

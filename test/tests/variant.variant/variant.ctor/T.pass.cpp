@@ -142,26 +142,26 @@ void test_T_ctor_basic() {
 #endif
   {
     swl::variant<std::string, bool const> v = "foo";
-    assert(v.index() == 0);
-    assert(swl::get<0>(v) == "foo");
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v) == "foo");
   }
   {
     swl::variant<bool volatile, std::unique_ptr<int>> v = nullptr;
-    assert(v.index() == 1);
-    assert(swl::get<1>(v) == nullptr);
+    SWL_ASSERT(v.index() == 1);
+    SWL_ASSERT(swl::get<1>(v) == nullptr);
   }
   {
     swl::variant<bool volatile const, int> v = true;
-    assert(v.index() == 0);
-    assert(swl::get<0>(v));
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(swl::get<0>(v));
   }
   {
     swl::variant<RValueConvertibleFrom<int>> v1 = 42;
-    assert(v1.index() == 0);
+    SWL_ASSERT(v1.index() == 0);
 
     int x = 42;
     swl::variant<RValueConvertibleFrom<int>, AnyConstructible> v2 = x;
-    assert(v2.index() == 1);
+    SWL_ASSERT(v2.index() == 1);
   }
 #if !defined(TEST_VARIANT_HAS_NO_REFERENCES)
   {
@@ -169,16 +169,16 @@ void test_T_ctor_basic() {
     static_assert(std::is_convertible<int &, V>::value, "must be implicit");
     int x = 42;
     V v(x);
-    assert(v.index() == 0);
-    assert(&swl::get<0>(v) == &x);
+    SWL_ASSERT(v.index() == 0);
+    SWL_ASSERT(&swl::get<0>(v) == &x);
   }
   {
     using V = swl::variant<const int &, int &&, long>;
     static_assert(std::is_convertible<int, V>::value, "must be implicit");
     int x = 42;
     V v(std::move(x));
-    assert(v.index() == 1);
-    assert(&swl::get<1>(v) == &x);
+    SWL_ASSERT(v.index() == 1);
+    SWL_ASSERT(&swl::get<1>(v) == &x);
   }
 #endif
 }
@@ -191,8 +191,8 @@ struct BoomOnAnything {
 void test_no_narrowing_check_for_class_types() {
   using V = swl::variant<int, BoomOnAnything>;
   V v(42);
-  assert(v.index() == 0);
-  assert(swl::get<0>(v) == 42);
+  SWL_ASSERT(v.index() == 0);
+  SWL_ASSERT(swl::get<0>(v) == 42);
 }
 
 struct Bar {};
