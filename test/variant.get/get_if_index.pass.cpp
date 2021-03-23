@@ -18,13 +18,13 @@
 //  constexpr add_pointer_t<const variant_alternative_t<I, variant<Types...>>>
 //   get_if(const variant<Types...>* v) noexcept;
 
+#include <variant.hpp>
+
 #include "test_macros.h"
 #include "variant_test_helpers.h"
 
 #include <cassert>
 #include <memory>
-
-#include <variant.hpp>
 
 void test_const_get_if() {
   {

@@ -32,9 +32,13 @@
 namespace swl {
 
 struct bad_variant_access : std::exception {
-	bad_variant_access(const char* msg) noexcept : message(msg) {}
+	public : 
+	bad_variant_access(const char* str) noexcept : message{str} {}
+	bad_variant_access() noexcept = default;
+	bad_variant_access(const bad_variant_access&) noexcept = default;
+	bad_variant_access& operator= (const bad_variant_access&) noexcept = default;
 	const char* what() const noexcept override { return message; }
-	const char* message;
+	const char* message = " "; // llvm test requires a non null what() on default init
 };
 
 namespace vimpl { 
@@ -327,23 +331,35 @@ class variant : private vimpl::variant_tag {
 	
 	// =================================== swap (20.7.3.7)
 	
-	void swap(variant& o) requires has_move_ctor {
+	void swap(variant& o) 
+		noexcept ( (std::is_nothrow_move_constructible_v<Ts> && ...) 
+				   && (vimpl::nothrow_swappable<Ts> && ...) )
+		requires (has_move_ctor && (vimpl::swappable<Ts> && ...))
+	{
 		if constexpr (can_be_valueless){
 			if (valueless_by_exception() && o.valueless_by_exception())
 				return;
-			}
+		}
 		
 		Assert__( not (valueless_by_exception() && o.valueless_by_exception()) );
 		
-		if (index() == o.index())
+		if (index() == o.index()){
 			o.visit_with_index( [this] (auto& elem, auto index_) {
 				using std::swap;
 				swap(get<index_>(), elem);
 			});
+		}
 		else {
-			auto tmp = o;
-			o = std::move(*this);
-			(*this) = std::move(tmp);
+			// TODO : replace this by multi visit with index
+			o.visit_with_index( [&o, this] (auto&& elem, auto index_) {
+				using idx_t = decltype(index_);
+				this->visit_with_index( [this, &o, &elem, index_] (auto&& this_elem, auto this_index) {
+					auto tmp { std::move(this_elem) };
+					this->emplace<idx_t::value>( std::move(elem) );
+					
+					o.template emplace< static_cast<unsigned>(this_index) >( std::move(tmp) );
+				});
+			});
 		}
 	}
 	
@@ -502,14 +518,17 @@ constexpr const T&& get (const variant<Ts...>&& v){
 // ===== get_if by index
 
 template <std::size_t Idx, class... Ts>
-constexpr auto* get_if(variant<Ts...>* v) noexcept {
-	if (v == nullptr || v->index() != Idx) return decltype(&v->template get<Idx>()){nullptr};
+constexpr const auto* get_if(const variant<Ts...>* v) noexcept {
+	if (v == nullptr || v->index() != Idx) 
+		return decltype(&v->template get<Idx>()){nullptr};
 	else return &v->template get<Idx>();
 }
 
 template <std::size_t Idx, class... Ts>
-constexpr const auto* get_if(const variant<Ts...>* v) noexcept {
-	return swl::get_if<Idx>(const_cast<variant<Ts...>*>(v));
+constexpr auto* get_if(variant<Ts...>* v) noexcept {
+	if (v == nullptr || v->index() != Idx) 
+		return decltype(&v->template get<Idx>()){nullptr};
+	else return &v->template get<Idx>();
 }
 
 // ====== get_if by type 
@@ -522,7 +541,8 @@ constexpr T* get_if(variant<Ts...>* v) noexcept {
 
 template <class T, class... Ts>
 constexpr const T* get_if(const variant<Ts...>* v) noexcept {
-	return swl::get_if<T>( const_cast<variant<Ts...>*>(v) );
+	static_assert( (std::is_same_v<T, Ts> || ...), "Requested type is not contained in the variant" );
+	return swl::get_if<vimpl::find_type<T, Ts...>()>(v);
 }
 
 // =============================== visitation (20.7.7)
@@ -645,7 +665,7 @@ constexpr bool operator>=(monostate, monostate) noexcept { return true; }
 
 template <class... Ts>
 void swap(variant<Ts...>& a, variant<Ts...>& b)
-	noexcept(noexcept(a.swap(b)))
+	noexcept (noexcept(a.swap(b)))
 	requires requires { a.swap(b); }
 {
 	a.swap(b);

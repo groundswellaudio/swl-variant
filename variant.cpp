@@ -97,6 +97,8 @@ int main(){
 	
 	//c = "heheeehee";
 	
+	swl::bad_variant_access xxx {"yoyo my dude"};
+	
 	using namespace swl;
 	variant<PACK> v1, v2, v3, v4, v5;
 	

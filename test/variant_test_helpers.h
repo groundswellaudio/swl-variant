@@ -14,6 +14,8 @@
 #include <utility>
 #include <cassert>
 
+#include <variant.hpp>
+
 #include "test_macros.h"
 #include "type_id.h"
 
