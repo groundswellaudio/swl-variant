@@ -76,14 +76,28 @@ inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_tag, std::de
 inline static constexpr vimpl::variant_npos_t variant_npos;
 
 template <class... Ts>
-class variant : private vimpl::variant_tag {
-	
-	public :
-	
+class variant;
+
+// ill-formed variant
+template <class... Ts>
+	requires ( ((std::is_array_v<Ts> || std::is_reference_v<Ts> || std::is_void_v<Ts>) || ...) || sizeof...(Ts) == 0 )
+class variant<Ts...> {
 	static_assert( not (std::is_array_v<Ts> || ...), "A variant cannot contain a raw array type, consider using std::array instead." );
 	static_assert( sizeof...(Ts) > 0, "A variant cannot be empty.");
 	static_assert( not (std::is_reference_v<Ts> || ...), "A variant cannot contain references, consider using reference wrappers instead." );
 	static_assert( not (std::is_void_v<Ts> || ...), "A variant cannot contains void." );
+};
+
+template <class... Ts>
+class variant : private vimpl::variant_tag {
+	
+	public :
+	
+	/* 
+	static_assert( not (std::is_array_v<Ts> || ...), "A variant cannot contain a raw array type, consider using std::array instead." );
+	static_assert( sizeof...(Ts) > 0, "A variant cannot be empty.");
+	static_assert( not (std::is_reference_v<Ts> || ...), "A variant cannot contain references, consider using reference wrappers instead." );
+	static_assert( not (std::is_void_v<Ts> || ...), "A variant cannot contains void." ); */ 
 	
 	static constexpr bool is_trivial 			= (std::is_trivial_v<Ts> && ...);
 	static constexpr bool has_copy_ctor			= (std::is_copy_constructible_v<Ts> && ...);
@@ -583,7 +597,6 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 	}
 }
 
-
 template <class Fn>
 constexpr decltype(auto) visit(Fn&& fn){
 	return static_cast<Fn&&>(fn)();
@@ -592,7 +605,7 @@ constexpr decltype(auto) visit(Fn&& fn){
 template <class R, class Fn, class... Vs>
 	requires (is_variant<Vs> && ...)
 constexpr R visit(Fn&& fn, Vs&&... vars){
-	return static_cast<R>( visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...) );
+	return static_cast<R>( swl::visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...) );
 }
 
 // ============================== relational operators (20.7.6)
@@ -609,7 +622,7 @@ constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
 
 template <class... Ts>
 constexpr bool operator!=(const variant<Ts...>& v1, const variant<Ts...>& v2)
-	requires requires { v1 == v2; }
+	requires requires { v1 == v2; } 
 {
 	return not(v1 == v2);
 }
@@ -617,11 +630,11 @@ constexpr bool operator!=(const variant<Ts...>& v1, const variant<Ts...>& v2)
 template <class... Ts>
 	requires ( vimpl::has_lesser_comp<const Ts&> && ... )
 constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
+	if constexpr (variant<Ts...>::can_be_valueless){
+		if (v2.valueless_by_exception()) return false;
+		if (v1.valueless_by_exception()) return true;
+	}
 	if ( v1.index() == v2.index() ){
-		if constexpr (variant<Ts...>::can_be_valueless){
-			if (v2.valueless_by_exception()) return false;
-			if (v1.valueless_by_exception()) return true;
-		}
 		return v1.visit_with_index( [&v2] (auto& elem, auto index) -> bool 
 		{
 			return (elem < v2.template get<index>());
@@ -639,11 +652,11 @@ constexpr bool operator>(const variant<Ts...>& v1, const variant<Ts...>& v2){
 template <class... Ts>
 	requires ( vimpl::has_lesser_than_comp<const Ts&> && ... )
 constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
+	if constexpr (variant<Ts...>::can_be_valueless){
+		if (v1.valueless_by_exception()) return true;
+		if (v2.valueless_by_exception()) return false;
+	}
 	if ( v1.index() == v2.index() ){
-		if constexpr (variant<Ts...>::can_be_valueless){
-			if (v2.valueless_by_exception()) return false;
-			if (v1.valueless_by_exception()) return true;
-		}
 		return v1.visit_with_index( [&v2] (auto& elem, auto index) -> bool {
 			return (elem <= v2.template get<index>());
 		});
