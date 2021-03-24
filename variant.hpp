@@ -22,7 +22,7 @@
 
 #endif
 
-#define SWL_VARIANT_DEBUG
+//#define SWL_VARIANT_DEBUG
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
@@ -78,9 +78,10 @@ inline static constexpr vimpl::variant_npos_t variant_npos;
 template <class... Ts>
 class variant;
 
-// ill-formed variant
+// ill-formed variant, an empty specialization prevents some really bad errors messages on gcc
 template <class... Ts>
-	requires ( ((std::is_array_v<Ts> || std::is_reference_v<Ts> || std::is_void_v<Ts>) || ...) || sizeof...(Ts) == 0 )
+	requires ( (std::is_array_v<Ts> || ...) || (std::is_reference_v<Ts> || ...) || (std::is_void_v<Ts> || ...)
+				|| sizeof...(Ts) == 0 )
 class variant<Ts...> {
 	static_assert( not (std::is_array_v<Ts> || ...), "A variant cannot contain a raw array type, consider using std::array instead." );
 	static_assert( sizeof...(Ts) > 0, "A variant cannot be empty.");
@@ -346,6 +347,7 @@ class variant : private vimpl::variant_tag {
 	
 	// =================================== swap (20.7.3.7)
 	
+	
 	/* 
 	void swap(variant& o) 
 		noexcept ( (std::is_nothrow_move_constructible_v<Ts> && ...) 
@@ -388,8 +390,8 @@ class variant : private vimpl::variant_tag {
 					o.template emplace< static_cast<unsigned>(this_index) >( std::move(tmp) );
 				});
 			});
-		}
-	} */ 
+		} 
+	}  */ 
 	
 	// +================================== methods for internal use
 	// these methods performs no errors checking at all
@@ -635,8 +637,7 @@ constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		if (v1.valueless_by_exception()) return true;
 	}
 	if ( v1.index() == v2.index() ){
-		return v1.visit_with_index( [&v2] (auto& elem, auto index) -> bool 
-		{
+		return v1.visit_with_index( [&v2] (auto& elem, auto index) -> bool {
 			return (elem < v2.template get<index>());
 		});
 	}

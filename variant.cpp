@@ -97,18 +97,16 @@ int main(){
 	
 	//c = "heheeehee";
 	
-	swl::bad_variant_access xxx {"yoyo my dude"};
-	
 	using namespace swl;
-	variant<PACK> v1, v2, v3, v4, v5;
+	//variant<PACK> v1, v2, v3, v4, v5;
 	
-	//visit( [] (auto x) { std::cout << x << std::endl;}, vrx );
+	variant<PACK4> vvv;
 	
 	//show_type< swl::variant<int, float, char>::storage_t >();
 	
 	//std::cout << (vr1 == vr2) << std::endl;
 	
-	visit( [] (auto... args) {}, v1, v2, v3, v4);
+	//visit( [] (auto... args) {}, v1, v2, v3, v4);
 	
 	/* 
 	vrx.emplace<1>(2.33f);
