@@ -30,6 +30,8 @@
 #include "test_macros.h"
 #include "variant_test_helpers.h"
 
+#include <cstdio>
+
 void test_call_operator_forwarding() {
   using Fn = ForwardingCallObject;
   Fn obj{};
@@ -291,12 +293,14 @@ void test_exceptions() {
     return false;
   };
   {
+    puts("a");
     using V = swl::variant<int, MakeEmptyT>;
     V v;
     makeEmpty(v);
     SWL_ASSERT(test(v));
   }
   {
+  	puts("b");
     using V = swl::variant<int, MakeEmptyT>;
     using V2 = swl::variant<long, std::string, void *>;
     V v;
@@ -305,6 +309,7 @@ void test_exceptions() {
     SWL_ASSERT(test(v, v2));
   }
   {
+  	puts("c");
     using V = swl::variant<int, MakeEmptyT>;
     using V2 = swl::variant<long, std::string, void *>;
     V v;
@@ -313,6 +318,7 @@ void test_exceptions() {
     SWL_ASSERT(test(v2, v));
   }
   {
+  	puts("d");
     using V = swl::variant<int, MakeEmptyT>;
     using V2 = swl::variant<long, std::string, void *, MakeEmptyT>;
     V v;
@@ -322,12 +328,14 @@ void test_exceptions() {
     SWL_ASSERT(test(v, v2));
   }
   {
+  	puts("e");
     using V = swl::variant<int, long, double, MakeEmptyT>;
     V v1(42l), v2(101), v3(202), v4(1.1);
     makeEmpty(v1);
     SWL_ASSERT(test(v1, v2, v3, v4));
   }
   {
+  	puts("f");
     using V = swl::variant<int, long, double, long long, MakeEmptyT>;
     V v1(42l), v2(101), v3(202), v4(1.1);
     makeEmpty(v1);
@@ -350,11 +358,17 @@ void test_caller_accepts_nonconst() {
 }
 
 int main(int, char**) {
+  puts("1");
   test_call_operator_forwarding();
+  puts("2");
   test_argument_forwarding();
+  puts("3");
   test_return_type();
+  puts("4");
   test_constexpr();
+  puts("5");
   test_exceptions();
+  puts("6");
   test_caller_accepts_nonconst();
 
   SWL_END_TEST_SIGNAL 

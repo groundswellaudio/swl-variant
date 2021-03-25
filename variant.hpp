@@ -7,33 +7,25 @@
 #include <new>
 #include <limits>
 
-#define SWL_CPP_VARIANT_USE_STD_HASH
-
-#ifdef SWL_CPP_VARIANT_USE_STD_HASH
-
-	// yeah, that's not great, but <functional> is an enormous header, so until modules are here...
-	#ifdef __GLIBCXX__
-		#include <bits/functional_hash.h>
-	#elif defined(_LIBCPP_VERSION)
-		// include nothing if libc++
-	#else 
-		#include <functional>
-	#endif
-
+#if __has_include("swl_variant_knobs.hpp")
+	#include "swl_variant_knobs.hpp"
 #endif
 
-//#define SWL_VARIANT_DEBUG
+#ifdef SWL_VARIANT_USE_STD_HASH
+	#include <functional>
+#endif
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
-	#define Assert__(X) if (not (X)) std::cout << "Variant : assertion failed : [" << #X << "] at line : " << __LINE__ << std::endl;
+	#define DebugAssert(X) if (not (X)) std::cout << "Variant : assertion failed : [" << #X << "] at line : " << __LINE__ << std::endl;
+	#undef SWL_VARIANT_DEBUG
 #else 
-	#define Assert__(X) 
+	#define DebugAssert(X) 
 #endif
 
 namespace swl {
 
-struct bad_variant_access : std::exception {
+class bad_variant_access : std::exception {
 	public : 
 	bad_variant_access(const char* str) noexcept : message{str} {}
 	bad_variant_access() noexcept = default;
@@ -92,34 +84,21 @@ class variant<Ts...> {
 template <class... Ts>
 class variant : private vimpl::variant_tag {
 	
-	public :
-	
-	/* 
-	static_assert( not (std::is_array_v<Ts> || ...), "A variant cannot contain a raw array type, consider using std::array instead." );
-	static_assert( sizeof...(Ts) > 0, "A variant cannot be empty.");
-	static_assert( not (std::is_reference_v<Ts> || ...), "A variant cannot contain references, consider using reference wrappers instead." );
-	static_assert( not (std::is_void_v<Ts> || ...), "A variant cannot contains void." ); */ 
-	
-	static constexpr bool is_trivial 			= (std::is_trivial_v<Ts> && ...);
-	static constexpr bool has_copy_ctor			= (std::is_copy_constructible_v<Ts> && ...);
-	static constexpr bool trivial_copy_ctor 	= is_trivial || has_copy_ctor && (std::is_trivially_copy_constructible_v<Ts> && ...);
-	static constexpr bool has_copy_assign 		= (std::is_copy_constructible_v<Ts> && ...);
-	static constexpr bool trivial_copy_assign 	= is_trivial || has_copy_assign && (std::is_trivially_copy_assignable_v<Ts> && ...);
-	static constexpr bool has_move_ctor			= (std::is_move_constructible_v<Ts> && ...);
-	static constexpr bool trivial_move_ctor		= is_trivial || has_move_ctor && (std::is_trivially_move_constructible_v<Ts> && ...);
-	static constexpr bool has_move_assign		= (std::is_move_assignable_v<Ts> && ...);
-	static constexpr bool trivial_move_assign   = is_trivial || has_move_assign && (std::is_trivially_move_assignable_v<Ts> && ...);
-	static constexpr bool trivial_dtor 			= (std::is_trivially_destructible_v<Ts> && ...);
+	using storage_t = vimpl::variant_top_union<vimpl::make_tree_union<Ts...>>;
+	 
+	static constexpr bool is_trivial 			= std::is_trivial_v<storage_t>;
+	static constexpr bool has_copy_ctor			= std::is_copy_constructible_v<storage_t>;
+	static constexpr bool trivial_copy_ctor 	= is_trivial || std::is_trivially_copy_constructible_v<storage_t>;
+	static constexpr bool has_copy_assign 		= std::is_copy_constructible_v<storage_t>;
+	static constexpr bool trivial_copy_assign 	= is_trivial || has_copy_assign && std::is_trivially_copy_assignable_v<storage_t>;
+	static constexpr bool has_move_ctor			= std::is_move_constructible_v<storage_t>;
+	static constexpr bool trivial_move_ctor		= is_trivial || std::is_trivially_move_constructible_v<storage_t>;
+	static constexpr bool has_move_assign		= std::is_move_assignable_v<storage_t>;
+	static constexpr bool trivial_move_assign   = is_trivial || std::is_trivially_move_assignable_v<storage_t>;
+	static constexpr bool trivial_dtor 			= std::is_trivially_destructible_v<storage_t>;
 	
 	template <bool PassIndex = false>
 	using make_dispatcher_t = vimpl::make_dispatcher<std::make_index_sequence<sizeof...(Ts)>, PassIndex>;
-	
-	// this capture the traits above to pass it to the storage
-	using sfm_traits = vimpl::traits<UNION_SFM_TRAITS()>;
-	
-	#undef UNION_SFM_TRAITS
-	
-	using storage_t = vimpl::variant_top_union<sfm_traits, vimpl::make_tree_union<sfm_traits, Ts...>>;
 	
 	public : 
 	
@@ -222,7 +201,7 @@ class variant : private vimpl::variant_tag {
 	// copy assignment 
 	constexpr variant& operator=(const variant& rhs)
 		requires (has_copy_assign and not(trivial_copy_assign && trivial_copy_ctor))
-	{	
+	{
 		if constexpr (can_be_valueless){
 			if (rhs.index() == npos){
 				if (current != npos){
@@ -253,7 +232,7 @@ class variant : private vimpl::variant_tag {
 	// move assignment (trivial)
 	constexpr variant& operator=(variant&& o)
 		requires (trivial_move_assign and trivial_move_ctor and trivial_dtor)
-	= default;
+	= default; 
 	
 	// move assignment
 	constexpr variant& operator=(variant&& o)
@@ -270,7 +249,7 @@ class variant : private vimpl::variant_tag {
 			}
 		}
 		
-		Assert__(not o.valueless_by_exception());
+		DebugAssert(not o.valueless_by_exception());
 		
 		o.visit_with_index( [this] (auto&& elem, auto index_cst) {
 			if (index() == index_cst)
@@ -279,7 +258,7 @@ class variant : private vimpl::variant_tag {
 				this->emplace<index_cst>(std::move(elem));
 		});
 		return *this;
-	}
+	} 
 	
 	// generic assignment 
 	template <class T>
@@ -347,8 +326,6 @@ class variant : private vimpl::variant_tag {
 	
 	// =================================== swap (20.7.3.7)
 	
-	
-	/* 
 	void swap(variant& o) 
 		noexcept ( (std::is_nothrow_move_constructible_v<Ts> && ...) 
 				   && (vimpl::swap_trait::template nothrow<Ts> && ...) )
@@ -371,7 +348,7 @@ class variant : private vimpl::variant_tag {
 			}
 		}
 		
-		Assert__( not (valueless_by_exception() && o.valueless_by_exception()) );
+		DebugAssert( not (valueless_by_exception() && o.valueless_by_exception()) );
 		
 		if (index() == o.index()){
 			o.visit_with_index( [this] (auto& elem, auto index_) {
@@ -391,7 +368,7 @@ class variant : private vimpl::variant_tag {
 				});
 			});
 		} 
-	}  */ 
+	} 
 	
 	// +================================== methods for internal use
 	// these methods performs no errors checking at all
@@ -399,71 +376,71 @@ class variant : private vimpl::variant_tag {
 	template <vimpl::union_index_t Idx>
 	constexpr auto& get() & noexcept	{
 		static_assert(Idx < size);
-		Assert__(current == Idx);
+		DebugAssert(current == Idx);
 		return storage.impl.template get<Idx>(); 
 	}
 	
 	template <vimpl::union_index_t Idx>
 	constexpr auto&& get() && noexcept { 
 		static_assert(Idx < size);
-		Assert__(current == Idx);
+		DebugAssert(current == Idx);
 		return std::move(storage.impl.template get<Idx>()); 
 	}
 	
 	template <vimpl::union_index_t Idx>
 	constexpr const auto& get() const & noexcept {
 		static_assert(Idx < size);
-		Assert__(current == Idx);
+		DebugAssert(current == Idx);
 		return const_cast<variant&>(*this).get<Idx>();
 	}
 	
 	template <vimpl::union_index_t Idx>
 	constexpr const auto&& get() const && noexcept {
 		static_assert(Idx < size);
-		Assert__(current == Idx);
+		DebugAssert(current == Idx);
 		return std::move(get<Idx>());
 	}
 	
 	template <class Fn>
 	constexpr decltype(auto) visit(Fn&& fn) & {
-		Assert__(not valueless_by_exception());
+		DebugAssert(not valueless_by_exception());
 		return make_dispatcher_t<false>::template dispatcher<Fn&&, variant&>[current](decltype(fn)(fn), *this);
 	}
 	
 	template <class Fn>
 	constexpr decltype(auto) visit(Fn&& fn) const & {
-		Assert__(not valueless_by_exception());
+		DebugAssert(not valueless_by_exception());
 		return make_dispatcher_t<false>::template dispatcher<Fn&&, const variant&>[current](decltype(fn)(fn), *this);
 	}
 	
 	template <class Fn>
 	constexpr decltype(auto) visit(Fn&& fn) && {
-		Assert__(not valueless_by_exception());
+		DebugAssert(not valueless_by_exception());
 		return make_dispatcher_t<false>::template dispatcher<Fn&&, variant&&>[current](decltype(fn)(fn), std::move(*this));
 	}
 	
 	template <class Fn>
 	constexpr decltype(auto) visit(Fn&& fn) const && {
-		Assert__(not valueless_by_exception());
+		DebugAssert(not valueless_by_exception());
 		return make_dispatcher_t<false>::template dispatcher<Fn&&, const variant&&>[current]
 			(decltype(fn)(fn), static_cast<const variant&&>(*this));
 	}
 	
 	template <class Fn>
 	constexpr decltype(auto) visit_with_index(Fn&& fn) & {
-		Assert__(not valueless_by_exception());
+		DebugAssert(not valueless_by_exception());
 		return make_dispatcher_t<true>::template dispatcher<Fn&&, variant&>[current](decltype(fn)(fn), *this);
 	}
 	
 	template <class Fn>
 	constexpr decltype(auto) visit_with_index(Fn&& fn) const & { 
-		Assert__(not valueless_by_exception());
+		DebugAssert(not valueless_by_exception());
 		return make_dispatcher_t<true>::template dispatcher<Fn&&, const variant&>[current](decltype(fn)(fn), *this);
 	}
 	
 	template <class Fn>
 	constexpr decltype(auto) visit_with_index(Fn&& fn) && { 
-		Assert__(not valueless_by_exception());
+		DebugAssert(not valueless_by_exception());
 		return make_dispatcher_t<true>::template dispatcher<Fn&&, variant&&>[current](decltype(fn)(fn), std::move(*this));
 	}
 	
@@ -474,7 +451,7 @@ class variant : private vimpl::variant_tag {
 		if constexpr (can_be_valueless)
 			if (valueless_by_exception()) return;
 			
-		Assert__(not valueless_by_exception());
+		DebugAssert(not valueless_by_exception());
 		
 		if constexpr ( not trivial_dtor ){
 			visit( [] (auto& elem) {
@@ -651,7 +628,7 @@ constexpr bool operator>(const variant<Ts...>& v1, const variant<Ts...>& v2){
 }
 
 template <class... Ts>
-	requires ( vimpl::has_lesser_than_comp<const Ts&> && ... )
+	requires ( vimpl::has_less_or_eq_comp<const Ts&> && ... )
 constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 	if constexpr (variant<Ts...>::can_be_valueless){
 		if (v1.valueless_by_exception()) return true;
@@ -692,33 +669,34 @@ void swap(variant<Ts...>& a, variant<Ts...>& b)
 
 } // SWL
 
-#ifdef SWL_CPP_VARIANT_USE_STD_HASH
-
 // ====================================== hash support (20.7.12)
+#ifdef SWL_VARIANT_USE_STD_HASH
 
-namespace std {
-	template <class... Ts>
-		requires (::swl::vimpl::has_std_hash<Ts> && ...)
-	struct hash<::swl::variant<Ts...>> {
-		std::size_t operator()(const ::swl::variant<Ts...>& v) const {
-			if constexpr ( ::swl::variant<Ts...>::can_be_valueless )
-				if (v.valueless_by_exception()) return -1;
-			
-			return v.visit_with_index( [] (auto& elem, auto index_) {
-				using type = std::remove_cvref_t<decltype(elem)>;
-				return std::hash<type>{}(elem) + index_;
-			});
-		}
-	};
+	namespace std {
+		template <class... Ts>
+			requires (::swl::vimpl::has_std_hash<Ts> && ...)
+		struct hash<::swl::variant<Ts...>> {
+			std::size_t operator()(const ::swl::variant<Ts...>& v) const {
+				if constexpr ( ::swl::variant<Ts...>::can_be_valueless )
+					if (v.valueless_by_exception()) return -1;
+		
+				return v.visit_with_index( [] (auto& elem, auto index_) {
+					using type = std::remove_cvref_t<decltype(elem)>;
+					return std::hash<type>{}(elem) + index_;
+				});
+			}
+		};
 
-	template <>
-	struct hash<::swl::monostate> {
-		constexpr std::size_t operator()(::swl::monostate) const noexcept { return -1; }
-	};
-}
+		template <>
+		struct hash<::swl::monostate> {
+			constexpr std::size_t operator()(::swl::monostate) const noexcept { return -1; }
+		};
+	}
 
-#undef Assert__
+	#undef SWL_VARIANT_USE_STD_HASH
 
 #endif // std-hash
 
-#endif
+#undef DebugAssert
+
+#endif // eof

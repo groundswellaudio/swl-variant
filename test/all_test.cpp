@@ -4,7 +4,7 @@
 #include <string_view>
 #include <cstdlib>
 #include <iostream>
-#include <swl_assert.hpp>
+#include "swl_assert.hpp"
 
 #include <cassert>
 
@@ -45,7 +45,8 @@ bool perform_fail_test(std::string_view filepath){
 	return not res.has_compiled;
 }
 
-bool contains(const std::string& str, auto&& word){
+template <class W>
+bool contains(const std::string& str, W&& word){
 	return (str.find(word) != std::string::npos);
 }
 
@@ -78,7 +79,8 @@ bool perform_test(std::string_view filepath){
 int main(){
 	
 	std::string summary;
-	
+	unsigned num_test = 0;
+	unsigned num_success = 0;
 	
 	unsigned k = 0;
 	
@@ -86,14 +88,17 @@ int main(){
 		if (f.path().extension() != ".cpp") 
 			continue;
 		
+		++num_test;
+		
 		auto path = std::string_view(f.path().c_str());
-		if (perform_test(path))
+		if (perform_test(path)){
 			((summary += "Test ") += path) += " : successful. \n";
+			++num_success;
+		}
 		else
 			((summary += "Test ") += path) += " : failed. \n";
 	}
 	
-	std::cout << "Test summary : \n" << summary << std::endl;
-	/* for (auto& f : list)
-		perform_test(f);	 */ 
+	std::cout << "Test summary : \n" << summary << "\n";
+	std::cout << "\n " << num_success << " success out of " << num_test << " tests. \n";
 }

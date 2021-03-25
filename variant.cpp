@@ -1,54 +1,14 @@
 
-//#include <tuple>
-//#include <variant>
-
-
-template <bool B>
-struct conditional;
-
-template <>
-struct conditional<true> {
-	template <class A, class B>
-	using f = A;
-};
-
-template <>
-struct conditional<false> {
-	template <class A, class B>
-	using f = B;
-};
-
-
-#define PACK int, float, char, bool, double, float
-#define PACK1 PACK, PACK
-#define PACK2 PACK, PACK, PACK, PACK
-#define PACK3 PACK2, PACK2, PACK2, PACK2
-#define PACK4 PACK3, PACK3, PACK3, PACK3
-#define PACK5 PACK4, PACK4, PACK4, PACK4
+#define PACK int, float, char, bool, double
+#define PACK1 PACK, PACK 
+#define PACK2 PACK1, PACK1
+#define PACK3 PACK2, PACK2 
+#define PACK4 PACK3, PACK3  
+#define PACK5 PACK4, PACK4
 #define PACK6 PACK5, PACK5
+#define PACK7 PACK6, PACK6
 
 //#include <iostream>
-
-template <class T, class... Args>
-concept constructible = requires (Args... args) { T{ args... }; };
-
-template <unsigned X>
-struct ctor_detect{
-	
-	/* 
-	ctor_detect(){
-		std::cout << "Ctor " << X << std::endl;
-	}
-	
-	ctor_detect(ctor_detect&&){
-		std::cout << "Move ctor" << X << std::endl;
-	}
-	
-	ctor_detect(const ctor_detect&){
-		std::cout << "Copy ctor" << X << std::endl;
-	} */ 
-	
-};
 
 //#define SWL_CPP_VARIANT_USE_STD_HASH
 #include "variant.hpp"
@@ -58,35 +18,12 @@ struct ctor_detect{
 
 //#include <variant>
 
-//#include <string>
-
-struct my_type{
-	
-	my_type(my_type&&){}
-	~my_type(){ }
-};
-
-struct type1{
-	virtual ~type1(){}
-};
-struct type2{ virtual ~type2(){} };
-
-struct noctor {
-	noctor() = delete;
-};
-
-/* 
-#include <iostream>
-#include <string>
-#include <cassert> */ 
 
 int main(){
 	
 	//swl::variant<int, std::string> vst { swl::in_place_index<1>, "hehehe" };
 	
 	//static_assert( not std::is_trivially_destructible_v<swl::variant<std::string, int>> );
-	
-	
 	
 	
 	//vvz = "hello";
@@ -98,25 +35,15 @@ int main(){
 	//c = "heheeehee";
 	
 	using namespace swl;
-	//variant<PACK> v1, v2, v3, v4, v5;
-	
-	variant<PACK4> vvv;
-	
-	//show_type< swl::variant<int, float, char>::storage_t >();
 	
 	//std::cout << (vr1 == vr2) << std::endl;
 	
 	//visit( [] (auto... args) {}, v1, v2, v3, v4);
 	
-	/* 
-	vrx.emplace<1>(2.33f);
 	
-	std::variant<PACK2> vr2;
+	variant<PACK1> a, b, c, d;
 	
-	vr2.emplace<0>(1); */ 
-	
-	
-	//visit( [] (auto a) {}, vr1);
+	visit( [] (auto... args) {}, a, b);
 	
 	//visit( [] (auto a, auto b) {}, vr1, vr2 );
 	/* 
