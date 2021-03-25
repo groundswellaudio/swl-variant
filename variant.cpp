@@ -41,9 +41,9 @@ int main(){
 	//visit( [] (auto... args) {}, v1, v2, v3, v4);
 	
 	
-	variant<PACK1> a, b, c, d;
+	variant<PACK6> a, b, c, d;
 	
-	visit( [] (auto... args) {}, a, b);
+	visit( [] (auto... args) {}, a);
 	
 	//visit( [] (auto a, auto b) {}, vr1, vr2 );
 	/* 

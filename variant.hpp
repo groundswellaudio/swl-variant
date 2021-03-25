@@ -7,10 +7,6 @@
 #include <new>
 #include <limits>
 
-#if __has_include("swl_variant_knobs.hpp")
-	#include "swl_variant_knobs.hpp"
-#endif
-
 #ifdef SWL_VARIANT_USE_STD_HASH
 	#include <functional>
 #endif
@@ -103,7 +99,7 @@ class variant : private vimpl::variant_tag {
 	public : 
 	
 	template <std::size_t Idx>
-	using alternative = vimpl::type_pack_element<Idx, Ts...>;
+	using alternative = std::remove_reference_t< decltype( std::declval<storage_t&>().impl.template get<Idx>() ) >;
 	
 	static constexpr bool can_be_valueless = not is_trivial;
 	
@@ -131,14 +127,9 @@ class variant : private vimpl::variant_tag {
 	// copy constructor
 	constexpr variant(const variant& o)
 		requires (has_copy_ctor and not trivial_copy_ctor)
-	: storage{ vimpl::valueless_construct_t{} } {
-		if constexpr (can_be_valueless){
-			if (o.index() == npos){
-				current = npos;
-				return;
-			}
-		}
-		o.visit_with_index( vimpl::emplace_into<variant&>{*this} );
+	: storage{ vimpl::valueless_construct_t{} } 
+	{
+		construct_from(o);
 	}
 	
 	// move constructor (trivial)
@@ -150,14 +141,9 @@ class variant : private vimpl::variant_tag {
 	constexpr variant(variant&& o)
 		noexcept ((std::is_nothrow_move_constructible_v<Ts> && ...))
 		requires (has_move_ctor and not trivial_move_ctor)
-	: storage{ vimpl::valueless_construct_t{} } {
-		if constexpr (can_be_valueless)
-			if (o.valueless_by_exception()){
-				current = npos;
-				return;
-			}
-				
-		static_cast<variant&&>(o).visit_with_index( vimpl::emplace_into<variant&>{*this} );
+	: storage{ vimpl::valueless_construct_t{} } 
+	{
+		construct_from(static_cast<variant&&>(o));
 	}
 	
 	// generic constructor
@@ -205,16 +191,16 @@ class variant : private vimpl::variant_tag {
 		if constexpr (can_be_valueless){
 			if (rhs.index() == npos){
 				if (current != npos){
-					reset();
+					reset_no_check();
 					current = npos;
 				}
 				return *this;
 			}
 		}
 		
-		rhs.visit_with_index( [this] (const auto& elem, auto index_cst) {
+		vimpl::visit_with_index( rhs, [this] (const auto& elem, auto index_cst) {
 			if (index() == index_cst)
-				this->get<index_cst>() = elem;
+				this->unsafe_get<index_cst>() = elem;
 			else{
 				using type = std::decay_t<decltype(elem)>;
 				if constexpr (std::is_nothrow_copy_constructible_v<type> 
@@ -242,7 +228,7 @@ class variant : private vimpl::variant_tag {
 		if constexpr (can_be_valueless){
 			if (o.index() == npos){
 				if (current != npos){
-					reset();
+					reset_no_check();
 					current = npos;
 				}
 				return *this;
@@ -251,14 +237,14 @@ class variant : private vimpl::variant_tag {
 		
 		DebugAssert(not o.valueless_by_exception());
 		
-		o.visit_with_index( [this] (auto&& elem, auto index_cst) {
+		vimpl::visit_with_index( o, [this] (auto&& elem, auto index_cst) {
 			if (index() == index_cst)
-				this->get<index_cst>() = std::move(elem);
+				this->unsafe_get<index_cst>() = std::move(elem);
 			else 
 				this->emplace<index_cst>(std::move(elem));
 		});
 		return *this;
-	} 
+	}
 	
 	// generic assignment 
 	template <class T>
@@ -271,7 +257,7 @@ class variant : private vimpl::variant_tag {
 		using related_type = best_overload_match<T&&, Ts...>;
 		constexpr auto new_index = find_type<related_type, Ts...>();
 		if (current == new_index)
-			get<new_index>() = static_cast<T&&>(t);
+			unsafe_get<new_index>() = static_cast<T&&>(t);
 		else {
 			if constexpr ( std::is_nothrow_constructible_v<related_type, T> 
 						   or not std::is_nothrow_move_constructible_v<related_type> )
@@ -294,13 +280,13 @@ class variant : private vimpl::variant_tag {
 		
 		constexpr auto Index = vimpl::find_type<T, Ts...>();	
 		(void) emplace<Index>(static_cast<Args&&>(args)...);
-		return get<Index>();
+		return unsafe_get<Index>();
 	}
 	
 	template <std::size_t Idx, class... Args>
 		requires (Idx < size and std::is_constructible_v<alternative<Idx>, Args&&...>)
 	auto& emplace(Args&&... args){
-		using T = std::remove_reference_t<decltype(get<Idx>())>;
+		using T = alternative<Idx>;
 		
 		reset();
 		
@@ -309,7 +295,7 @@ class variant : private vimpl::variant_tag {
 		
 		new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);
 		current = static_cast<index_type>(Idx);
-		return get<Idx>();
+		return unsafe_get<Idx>();
 	}
 	
 	// ==================================== value status (20.7.3.6)
@@ -336,13 +322,15 @@ class variant : private vimpl::variant_tag {
 				if (o.index() == npos) 
 					return;
 				else {
-					std::move(o).visit_with_index( vimpl::emplace_into<variant&>{*this} );
+					vimpl::visit_with_index( o, vimpl::emplace_into<variant&>{*this} );
+					o.reset_no_check();
 					o.current = npos;
 					return;
 				}
 			}
 			else if (o.index() == npos){
-				std::move(*this).visit_with_index( vimpl::emplace_into<variant&>{o} );
+				vimpl::visit_with_index( std::move(*this), vimpl::emplace_into<variant&>{o} );
+				reset_no_check();
 				current = npos;
 				return;
 			}
@@ -351,115 +339,85 @@ class variant : private vimpl::variant_tag {
 		DebugAssert( not (valueless_by_exception() && o.valueless_by_exception()) );
 		
 		if (index() == o.index()){
-			o.visit_with_index( [this] (auto& elem, auto index_) {
+			vimpl::visit_with_index(o, [this] (auto& elem, auto index_) {
 				using std::swap;
-				swap(this->get<index_>(), elem);
+				swap(this->unsafe_get<index_>(), elem);
 			});
 		}
 		else {
 			// TODO : replace this by multi visit with index
-			o.visit_with_index( [&o, this] (auto&& elem, auto index_) {
+			vimpl::visit_with_index( o, [&o, this] (auto&& elem, auto index_) {
 				using idx_t = decltype(index_);
-				this->visit_with_index( [this, &o, &elem, index_] (auto&& this_elem, auto this_index) {
+				vimpl::visit_with_index(*this, [this, &o, &elem, index_] (auto&& this_elem, auto this_index) {
 					auto tmp { std::move(this_elem) };
 					this->emplace<idx_t::value>( std::move(elem) );
 					
 					o.template emplace< static_cast<unsigned>(this_index) >( std::move(tmp) );
 				});
-			});
-		} 
+			});	
+		}
 	} 
 	
 	// +================================== methods for internal use
 	// these methods performs no errors checking at all
 	
 	template <vimpl::union_index_t Idx>
-	constexpr auto& get() & noexcept	{
+	constexpr auto& unsafe_get() & noexcept	{
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
 		return storage.impl.template get<Idx>(); 
 	}
 	
 	template <vimpl::union_index_t Idx>
-	constexpr auto&& get() && noexcept { 
+	constexpr auto&& unsafe_get() && noexcept { 
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
 		return std::move(storage.impl.template get<Idx>()); 
 	}
 	
 	template <vimpl::union_index_t Idx>
-	constexpr const auto& get() const & noexcept {
+	constexpr const auto& unsafe_get() const & noexcept {
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
-		return const_cast<variant&>(*this).get<Idx>();
+		return const_cast<variant&>(*this).unsafe_get<Idx>();
 	}
 	
 	template <vimpl::union_index_t Idx>
-	constexpr const auto&& get() const && noexcept {
+	constexpr const auto&& unsafe_get() const && noexcept {
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
-		return std::move(get<Idx>());
-	}
-	
-	template <class Fn>
-	constexpr decltype(auto) visit(Fn&& fn) & {
-		DebugAssert(not valueless_by_exception());
-		return make_dispatcher_t<false>::template dispatcher<Fn&&, variant&>[current](decltype(fn)(fn), *this);
-	}
-	
-	template <class Fn>
-	constexpr decltype(auto) visit(Fn&& fn) const & {
-		DebugAssert(not valueless_by_exception());
-		return make_dispatcher_t<false>::template dispatcher<Fn&&, const variant&>[current](decltype(fn)(fn), *this);
-	}
-	
-	template <class Fn>
-	constexpr decltype(auto) visit(Fn&& fn) && {
-		DebugAssert(not valueless_by_exception());
-		return make_dispatcher_t<false>::template dispatcher<Fn&&, variant&&>[current](decltype(fn)(fn), std::move(*this));
-	}
-	
-	template <class Fn>
-	constexpr decltype(auto) visit(Fn&& fn) const && {
-		DebugAssert(not valueless_by_exception());
-		return make_dispatcher_t<false>::template dispatcher<Fn&&, const variant&&>[current]
-			(decltype(fn)(fn), static_cast<const variant&&>(*this));
-	}
-	
-	template <class Fn>
-	constexpr decltype(auto) visit_with_index(Fn&& fn) & {
-		DebugAssert(not valueless_by_exception());
-		return make_dispatcher_t<true>::template dispatcher<Fn&&, variant&>[current](decltype(fn)(fn), *this);
-	}
-	
-	template <class Fn>
-	constexpr decltype(auto) visit_with_index(Fn&& fn) const & { 
-		DebugAssert(not valueless_by_exception());
-		return make_dispatcher_t<true>::template dispatcher<Fn&&, const variant&>[current](decltype(fn)(fn), *this);
-	}
-	
-	template <class Fn>
-	constexpr decltype(auto) visit_with_index(Fn&& fn) && { 
-		DebugAssert(not valueless_by_exception());
-		return make_dispatcher_t<true>::template dispatcher<Fn&&, variant&&>[current](decltype(fn)(fn), std::move(*this));
+		return std::move(unsafe_get<Idx>());
 	}
 	
 	private : 
 	
-	
 	void reset() {
 		if constexpr (can_be_valueless)
 			if (valueless_by_exception()) return;
-			
 		DebugAssert(not valueless_by_exception());
-		
+		reset_no_check();
+	}
+	
+	void reset_no_check(){
 		if constexpr ( not trivial_dtor ){
-			visit( [] (auto& elem) {
-				using type = std::decay_t<decltype(elem)>;
+			vimpl::visit( *this, [] (auto& elem) {
+				using type = std::remove_reference_t<decltype(elem)>;
 				if constexpr ( not std::is_trivially_destructible_v<type> )
 					elem.~type();
 			});
 		}
+	}
+	
+	// for both copy constructor and move constructor
+	template <class Other>
+	void construct_from(Other&& o){
+		if constexpr (can_be_valueless)
+			if (o.valueless_by_exception()){
+				current = npos;
+				return;
+			}
+				
+		vimpl::visit_with_index( static_cast<Other&&>(o), vimpl::emplace_into<variant&>{*this} );
 	}
 	
 	storage_t storage;
@@ -481,7 +439,7 @@ template <std::size_t Idx, class... Ts>
 constexpr auto& get (variant<Ts...>& v){
 	static_assert( Idx < sizeof...(Ts), "Index exceeds the variant size. ");
 	if (v.index() != Idx) throw bad_variant_access{"swl::variant : Bad variant access."};
-	return (v.template get<Idx>());
+	return (v.template unsafe_get<Idx>());
 }
 
 template <std::size_t Idx, class... Ts>
@@ -526,15 +484,15 @@ constexpr const T&& get (const variant<Ts...>&& v){
 template <std::size_t Idx, class... Ts>
 constexpr const auto* get_if(const variant<Ts...>* v) noexcept {
 	if (v == nullptr || v->index() != Idx) 
-		return decltype(&v->template get<Idx>()){nullptr};
-	else return &v->template get<Idx>();
+		return decltype(&v->template unsafe_get<Idx>()){nullptr};
+	else return &v->template unsafe_get<Idx>();
 }
 
 template <std::size_t Idx, class... Ts>
 constexpr auto* get_if(variant<Ts...>* v) noexcept {
 	if (v == nullptr || v->index() != Idx) 
-		return decltype(&v->template get<Idx>()){nullptr};
-	else return &v->template get<Idx>();
+		return decltype(&v->template unsafe_get<Idx>()){nullptr};
+	else return &v->template unsafe_get<Idx>();
 }
 
 // ====== get_if by type 
@@ -596,7 +554,7 @@ constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		return false;
 	if constexpr (variant<Ts...>::can_be_valueless)
 		if (v1.valueless_by_exception()) return true;
-	return v2.visit_with_index( vimpl::eq_comp<const variant<Ts...>&>{v1} );
+	return vimpl::visit_with_index( v2, vimpl::eq_comp<const variant<Ts...>&>{v1} );
 }
 
 template <class... Ts>
@@ -614,8 +572,8 @@ constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		if (v1.valueless_by_exception()) return true;
 	}
 	if ( v1.index() == v2.index() ){
-		return v1.visit_with_index( [&v2] (auto& elem, auto index) -> bool {
-			return (elem < v2.template get<index>());
+		return vimpl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
+			return (elem < v2.template unsafe_get<index>());
 		});
 	}
 	else
@@ -635,8 +593,8 @@ constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		if (v2.valueless_by_exception()) return false;
 	}
 	if ( v1.index() == v2.index() ){
-		return v1.visit_with_index( [&v2] (auto& elem, auto index) -> bool {
-			return (elem <= v2.template get<index>());
+		return vimpl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
+			return (elem <= v2.template unsafe_get<index>());
 		});
 	}
 	else
@@ -674,10 +632,10 @@ void swap(variant<Ts...>& a, variant<Ts...>& b)
 
 	namespace std {
 		template <class... Ts>
-			requires (::swl::vimpl::has_std_hash<Ts> && ...)
-		struct hash<::swl::variant<Ts...>> {
-			std::size_t operator()(const ::swl::variant<Ts...>& v) const {
-				if constexpr ( ::swl::variant<Ts...>::can_be_valueless )
+			requires (swl::vimpl::has_std_hash<Ts> && ...)
+		struct hash<swl::variant<Ts...>> {
+			std::size_t operator()(const swl::variant<Ts...>& v) const {
+				if constexpr ( swl::variant<Ts...>::can_be_valueless )
 					if (v.valueless_by_exception()) return -1;
 		
 				return v.visit_with_index( [] (auto& elem, auto index_) {
@@ -688,8 +646,8 @@ void swap(variant<Ts...>& a, variant<Ts...>& b)
 		};
 
 		template <>
-		struct hash<::swl::monostate> {
-			constexpr std::size_t operator()(::swl::monostate) const noexcept { return -1; }
+		struct hash<swl::monostate> {
+			constexpr std::size_t operator()(swl::monostate) const noexcept { return -1; }
 		};
 	}
 

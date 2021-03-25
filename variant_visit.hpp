@@ -2,24 +2,14 @@
 
 // ========================= visit dispatcher
 
-template <unsigned Idx, class Fn, class Var>
-constexpr decltype(auto) visit__private_simple__(Fn fn, Var var){
-	return static_cast<Fn&&>(fn)( static_cast<Var&&>(var) );
-}
-
-template <unsigned Idx, class Fn, class Var>
-constexpr decltype(auto) visit_with_index__(Fn fn, Var v){
-	return static_cast<Fn&&>(fn)(static_cast<Var&&>(v).template get<Idx>(), std::integral_constant<unsigned, Idx>{});
-}
-
 template <class Seq, bool PassIndex>
 struct make_dispatcher;
 
 template <class Fn, class... Vars>
-using rtype_visit = decltype( ( std::declval<Fn>()( std::declval<Vars>().template get<0>()... ) ) );
+using rtype_visit = decltype( ( std::declval<Fn>()( std::declval<Vars>().template unsafe_get<0>()... ) ) );
 
 template <class Fn, class Var>
-using rtype_index_visit = decltype( ( std::declval<Fn>()( std::declval<Var>().template get<0>(), 
+using rtype_index_visit = decltype( ( std::declval<Fn>()( std::declval<Var>().template unsafe_get<0>(), 
 								 	  std::integral_constant<std::size_t, 0>{} ) ) 
 								  );
 
@@ -30,7 +20,7 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
 	template <class Fn, class Var>
 	static constexpr rtype_visit<Fn, Var> (*dispatcher[sizeof...(Idx)]) (Fn, Var) = {
 		+[] (Fn fn, Var var) -> decltype(auto) {
-				return static_cast<Fn&&>(fn)( static_cast<Var&&>(var).template get<Idx>() );
+				return static_cast<Fn&&>(fn)( static_cast<Var&&>(var).template unsafe_get<Idx>() );
 		}...
 	};
 };
@@ -41,7 +31,7 @@ struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
 	template <class Fn, class Var>
 	static constexpr rtype_index_visit<Fn, Var>(*dispatcher[sizeof...(Idx)]) (Fn, Var) = {
 		+[] (Fn fn, Var var) -> decltype(auto) {
-			return static_cast<Fn&&>(fn)(static_cast<Var&&>(var).template get<Idx>(), std::integral_constant<unsigned, Idx>{});
+			return static_cast<Fn&&>(fn)(static_cast<Var&&>(var).template unsafe_get<Idx>(), std::integral_constant<unsigned, Idx>{});
 		}... 
 	};
 };
@@ -111,7 +101,7 @@ struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
 	template <unsigned FlatIdx, class Fn, class... Vars>
 	static constexpr decltype(auto) func (Fn fn, Vars... vars){
 		constexpr auto& coord = make_indices<std::decay_t<Vars>::size...>::indices.data[FlatIdx];
-		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template get<coord[Vx]>()... );
+		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template unsafe_get<coord[Vx]>()... );
 	}
 		
 	template <unsigned TableSize, unsigned... Idx>
@@ -162,7 +152,7 @@ struct multi_dispatcher
 	template <unsigned FlatIdx, class Fn, class... Vars>
 	static constexpr decltype(auto) func (Fn fn, Vars... vars){
 		constexpr auto coord = unflatten(FlatIdx, var_sizes);
-		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template get<coord.data[Vx]>()... );
+		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template unsafe_get<coord.data[Vx]>()... );
 	}
 		
 	template <unsigned TableSize, unsigned... Idx>
@@ -176,5 +166,22 @@ struct multi_dispatcher
 }; 
 
 }// v3
+
+template <class Fn, class V>
+constexpr decltype(auto) visit(Fn&& fn, V&& v){
+	DebugAssert(not v.valueless_by_exception());
+	using seq = std::make_index_sequence< std::remove_reference_t<V>::size >;
+	return make_dispatcher<seq, false>::template dispatcher<Fn&&, V&&>[v.index()]
+		( static_cast<Fn&&>(fn), static_cast<V&&>(v) );
+}
+
+template <class Fn, class V>
+constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
+	DebugAssert(not v.valueless_by_exception());
+	using seq = std::make_index_sequence< std::remove_reference_t<V>::size >;
+	return make_dispatcher<seq, true>::template dispatcher<Fn&&, V&&>[v.index()]
+		( static_cast<Fn&&>(fn), static_cast<V&&>(v) );
+}
+
 
 #endif
