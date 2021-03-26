@@ -284,7 +284,9 @@ class variant : private vimpl::variant_tag {
 	}
 	
 	template <std::size_t Idx, class... Args>
-		requires (Idx < size and std::is_constructible_v<alternative<Idx>, Args&&...>)
+		requires (Idx < size 
+				  and ( std::is_constructible_v<alternative<Idx>, Args&&...> 
+				  		|| vimpl::bracket_constructible<alternative<Idx>, Args&&...> ) )
 	auto& emplace(Args&&... args){
 		using T = alternative<Idx>;
 		
@@ -293,7 +295,11 @@ class variant : private vimpl::variant_tag {
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
 			current = npos;
 		
-		new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);
+		if constexpr ( std::is_constructible_v<alternative<Idx>, Args&&...> )
+			new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);
+		else 
+			new( (void*)(&storage.impl.template get<Idx>()) ) T {static_cast<Args&&>(args)...};
+		
 		current = static_cast<index_type>(Idx);
 		return unsafe_get<Idx>();
 	}
@@ -519,9 +525,7 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 			throw bad_variant_access{"swl::variant : Bad variant access in visit."};
 				
 	if constexpr (sizeof...(Vs) == 1){
-		return [] (auto&& fn, auto&& head) -> decltype(auto) { 
-			return ( decltype(head)(head).visit(static_cast<Fn&&>(fn)) );
-		} (static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
+		return vimpl::visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
 	}
 	else {
 		using namespace vimpl;

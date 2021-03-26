@@ -83,6 +83,9 @@ concept has_non_ambiguous_match =
 template <class From, class To>
 concept convertible = std::is_convertible_v<From, To>;
 
+template <class T, class... Args>
+concept bracket_constructible = requires (Args... args) { T{args...}; };
+
 template <class T>
 concept has_eq_comp = requires (T a, T b) { 
 	{ a == b } -> convertible<bool>; 
