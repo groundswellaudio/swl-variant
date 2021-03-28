@@ -117,6 +117,21 @@ struct emplace_into {
 	}
 	A& a;
 };
+
+template <class A>
+struct emplace_no_dtor_from_elem {
+	template <class T>
+	constexpr void operator()(T&& elem, auto index_) const {
+		a.template emplace_no_dtor<index_>( static_cast<T&&>(elem) ); 
+	}
+	A& a;
+};
+
+template <class E, class T>
+constexpr void destruct(T& obj){
+	if constexpr (not std::is_trivially_destructible_v<E>)
+		obj.~E();
+}
 	
 // =============================== variant union types
 	

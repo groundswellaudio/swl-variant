@@ -18,13 +18,13 @@ int main(){
 	using namespace swl;
 	
 	
-	variant<PACK7> vvv;
+	variant<PACK1> a, b, c, d;
 	
-	vvv.emplace<4>(2);
+	a.emplace<4>(2);
 	
 	int x = 0;
 	
-	visit( [&x] (auto z) { x += static_cast<int>(z); }, vvv );
+	swl::visit( [&x] (auto... args) { }, a, b, c, d );
 	
 	
 } 

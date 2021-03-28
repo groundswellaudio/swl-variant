@@ -82,16 +82,16 @@ class variant : private vimpl::variant_tag {
 	
 	using storage_t = vimpl::variant_top_union<vimpl::make_tree_union<Ts...>>;
 	 
-	static constexpr bool is_trivial 			= std::is_trivial_v<storage_t>;
-	static constexpr bool has_copy_ctor			= std::is_copy_constructible_v<storage_t>;
-	static constexpr bool trivial_copy_ctor 	= is_trivial || std::is_trivially_copy_constructible_v<storage_t>;
-	static constexpr bool has_copy_assign 		= std::is_copy_constructible_v<storage_t>;
-	static constexpr bool trivial_copy_assign 	= is_trivial || has_copy_assign && std::is_trivially_copy_assignable_v<storage_t>;
-	static constexpr bool has_move_ctor			= std::is_move_constructible_v<storage_t>;
-	static constexpr bool trivial_move_ctor		= is_trivial || std::is_trivially_move_constructible_v<storage_t>;
-	static constexpr bool has_move_assign		= std::is_move_assignable_v<storage_t>;
-	static constexpr bool trivial_move_assign   = is_trivial || std::is_trivially_move_assignable_v<storage_t>;
-	static constexpr bool trivial_dtor 			= std::is_trivially_destructible_v<storage_t>;
+	static constexpr bool is_trivial           = std::is_trivial_v<storage_t>;
+	static constexpr bool has_copy_ctor        = std::is_copy_constructible_v<storage_t>;
+	static constexpr bool trivial_copy_ctor    = is_trivial || std::is_trivially_copy_constructible_v<storage_t>;
+	static constexpr bool has_copy_assign      = std::is_copy_constructible_v<storage_t>;
+	static constexpr bool trivial_copy_assign  = is_trivial || has_copy_assign && std::is_trivially_copy_assignable_v<storage_t>;
+	static constexpr bool has_move_ctor        = std::is_move_constructible_v<storage_t>;
+	static constexpr bool trivial_move_ctor    = is_trivial || std::is_trivially_move_constructible_v<storage_t>;
+	static constexpr bool has_move_assign      = std::is_move_assignable_v<storage_t>;
+	static constexpr bool trivial_move_assign  = is_trivial || std::is_trivially_move_assignable_v<storage_t>;
+	static constexpr bool trivial_dtor         = std::is_trivially_destructible_v<storage_t>;
 	
 	template <bool PassIndex = false>
 	using make_dispatcher_t = vimpl::make_dispatcher<std::make_index_sequence<sizeof...(Ts)>, PassIndex>;
@@ -127,8 +127,7 @@ class variant : private vimpl::variant_tag {
 	// copy constructor
 	constexpr variant(const variant& o)
 		requires (has_copy_ctor and not trivial_copy_ctor)
-	: storage{ vimpl::valueless_construct_t{} } 
-	{
+	: storage{ vimpl::valueless_construct_t{} } {
 		construct_from(o);
 	}
 	
@@ -141,17 +140,15 @@ class variant : private vimpl::variant_tag {
 	constexpr variant(variant&& o)
 		noexcept ((std::is_nothrow_move_constructible_v<Ts> && ...))
 		requires (has_move_ctor and not trivial_move_ctor)
-	: storage{ vimpl::valueless_construct_t{} } 
-	{
+	: storage{ vimpl::valueless_construct_t{} } {
 		construct_from(static_cast<variant&&>(o));
 	}
 	
 	// generic constructor
 	template <class T, class M = vimpl::best_overload_match<T&&, Ts...>, class D = std::decay_t<T>>
-		requires ( not std::is_same_v<D, variant> 
-				   and not std::is_base_of_v<vimpl::emplacer_tag, D> )
-	constexpr variant(T&& t) 
+	constexpr variant(T&& t)
 		noexcept ( std::is_nothrow_constructible_v<M, T&&> )
+		requires ( not std::is_same_v<D, variant> and not std::is_base_of_v<vimpl::emplacer_tag, D> )
 	: variant{ in_place_index< vimpl::find_type<M, Ts... >() >, static_cast<T&&>(t) }
 	{}
 	
@@ -188,23 +185,13 @@ class variant : private vimpl::variant_tag {
 	constexpr variant& operator=(const variant& rhs)
 		requires (has_copy_assign and not(trivial_copy_assign && trivial_copy_ctor))
 	{
-		if constexpr (can_be_valueless){
-			if (rhs.index() == npos){
-				if (current != npos){
-					reset_no_check();
-					current = npos;
-				}
-				return *this;
-			}
-		}
-		
-		vimpl::visit_with_index( rhs, [this] (const auto& elem, auto index_cst) {
+		assign_from(rhs, [this] (const auto& elem, auto index_cst) {
 			if (index() == index_cst)
 				this->unsafe_get<index_cst>() = elem;
 			else{
-				using type = std::decay_t<decltype(elem)>;
+				using type = alternative<index_cst>;
 				if constexpr (std::is_nothrow_copy_constructible_v<type> 
-							  or not std::is_nothrow_move_constructible_v<type>)
+								or not std::is_nothrow_move_constructible_v<type>)
 					this->emplace<index_cst>(elem);
 				else{
 					alternative<index_cst> tmp = elem;
@@ -225,19 +212,8 @@ class variant : private vimpl::variant_tag {
 		noexcept ((std::is_nothrow_move_constructible_v<Ts> && ...) && (std::is_nothrow_move_assignable_v<Ts> && ...))
 		requires (has_move_assign && has_move_ctor and not(trivial_move_assign and trivial_move_ctor and trivial_dtor))
 	{
-		if constexpr (can_be_valueless){
-			if (o.index() == npos){
-				if (current != npos){
-					reset_no_check();
-					current = npos;
-				}
-				return *this;
-			}
-		}
-		
-		DebugAssert(not o.valueless_by_exception());
-		
-		vimpl::visit_with_index( o, [this] (auto&& elem, auto index_cst) {
+		assign_from(static_cast<variant&&>(o), [this] (auto&& elem, auto index_cst) 
+		{
 			if (index() == index_cst)
 				this->unsafe_get<index_cst>() = std::move(elem);
 			else 
@@ -284,8 +260,7 @@ class variant : private vimpl::variant_tag {
 	}
 	
 	template <std::size_t Idx, class... Args>
-		requires (Idx < size 
-				  and std::is_constructible_v<alternative<Idx>, Args&&...>  )
+		requires (Idx < size and std::is_constructible_v<alternative<Idx>, Args&&...>  )
 	auto& emplace(Args&&... args){
 		using T = alternative<Idx>;
 		
@@ -294,10 +269,7 @@ class variant : private vimpl::variant_tag {
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
 			current = npos;
 		
-		if constexpr ( std::is_constructible_v<alternative<Idx>, Args&&...> )
-			new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);
-		
-		current = static_cast<index_type>(Idx);
+		emplace_no_dtor<Idx>(static_cast<Args&&>(args)...);
 		return unsafe_get<Idx>();
 	}
 	
@@ -325,14 +297,14 @@ class variant : private vimpl::variant_tag {
 				if (o.index() == npos) 
 					return;
 				else {
-					vimpl::visit_with_index( o, vimpl::emplace_into<variant&>{*this} );
+					vimpl::visit_with_index( std::move(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
 					o.reset_no_check();
 					o.current = npos;
 					return;
 				}
 			}
 			else if (o.index() == npos){
-				vimpl::visit_with_index( std::move(*this), vimpl::emplace_into<variant&>{o} );
+				vimpl::visit_with_index( std::move(*this), vimpl::emplace_no_dtor_from_elem<variant&>{o} );
 				reset_no_check();
 				current = npos;
 				return;
@@ -352,19 +324,28 @@ class variant : private vimpl::variant_tag {
 			vimpl::visit_with_index( o, [&o, this] (auto&& elem, auto index_) {
 				using idx_t = decltype(index_);
 				vimpl::visit_with_index(*this, [this, &o, &elem, index_] (auto&& this_elem, auto this_index) {
+				
 					auto tmp { std::move(this_elem) };
-					this->emplace<idx_t::value>( std::move(elem) );
 					
-					o.template emplace< static_cast<unsigned>(this_index) >( std::move(tmp) );
+					// destructing the elements right here save us another level of indirection
+					vimpl::destruct<alternative<this_index>>(this_elem);
+					
+					if constexpr (not std::is_nothrow_move_constructible_v<alternative<idx_t::value>> )
+						this->current = npos;
+					this->emplace_no_dtor<idx_t::value>( std::move(elem) );
+					
+					vimpl::destruct<alternative<idx_t::value>>(elem);
+					
+					if constexpr (not std::is_nothrow_move_constructible_v<alternative<this_index>> )
+						o.current = npos;
+					o.template emplace_no_dtor< (unsigned)(this_index) >( std::move(tmp) );
 				});
 			});	
 		}
-	} 
+	}
 	
 	// +================================== methods for internal use
 	// these methods performs no errors checking at all
-	
-	//#define GETEXPR storage.template get<Idx>();
 	
 	template <vimpl::union_index_t Idx>
 	constexpr auto& unsafe_get() & noexcept	{
@@ -396,34 +377,61 @@ class variant : private vimpl::variant_tag {
 	
 	private : 
 	
-	void reset() {
+	// can be used directly only when the variant is in a known empty state
+	template <unsigned Idx, class... Args>
+	constexpr void emplace_no_dtor(Args&&... args){
+		using T = alternative<Idx>;
+		new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);	
+		current = static_cast<index_type>(Idx);
+	}
+	
+	// destroy the current elem IFF not valueless 
+	constexpr void reset() {
 		if constexpr (can_be_valueless)
 			if (valueless_by_exception()) return;
-		DebugAssert(not valueless_by_exception());
 		reset_no_check();
 	}
 	
-	void reset_no_check(){
+	// destroy the current element without checking for valueless
+	constexpr void reset_no_check(){
+		DebugAssert( index() < size );
 		if constexpr ( not trivial_dtor ){
-			vimpl::visit( *this, [] (auto& elem) {
-				using type = std::remove_reference_t<decltype(elem)>;
-				if constexpr ( not std::is_trivially_destructible_v<type> )
-					elem.~type();
+			vimpl::visit_with_index( *this, [] (auto& elem, auto index_) {
+				vimpl::destruct<alternative<index_>>(elem);
 			});
 		}
 	}
 	
-	// for both copy constructor and move constructor
+	// construct this from another variant, for constructors only
 	template <class Other>
-	void construct_from(Other&& o){
+	constexpr void construct_from(Other&& o){
 		if constexpr (can_be_valueless)
 			if (o.valueless_by_exception()){
 				current = npos;
 				return;
 			}
-				
-		vimpl::visit_with_index( static_cast<Other&&>(o), vimpl::emplace_into<variant&>{*this} );
+		
+		vimpl::visit_with_index( static_cast<Other&&>(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
 	}
+	
+	// assign from another variant
+	template <class Other, class Fn>
+	constexpr void assign_from(Other&& o, Fn&& fn){
+		if constexpr (can_be_valueless){
+			if (o.index() == npos){
+				if (current != npos){
+					reset_no_check();
+					current = npos;
+				}
+				return;
+			}
+		}
+		DebugAssert(not o.valueless_by_exception());
+		vimpl::visit_with_index( static_cast<Other&&>(o), static_cast<Fn&&>(fn) );
+	}
+	
+	template <class T>
+	friend struct emplace_no_dtor_from_elem;
 	
 	storage_t storage;
 	index_type current;
@@ -550,7 +558,7 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vs){
 	if constexpr (sizeof...(Vs) == 1)
 		return vimpl::visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
 	else 
-		return vimpl::visit_with_index(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
+		return vimpl::multi_visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
 }
 
 template <class Fn>
@@ -670,7 +678,7 @@ void swap(variant<Ts...>& a, variant<Ts...>& b)
 		};
 	}
 
-	#undef SWL_VARIANT_USE_STD_HASH
+#undef SWL_VARIANT_USE_STD_HASH
 
 #endif // std-hash
 

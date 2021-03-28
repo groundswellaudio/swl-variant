@@ -126,9 +126,6 @@ inline namespace v1 {
 #define SEQ400(N) SEQ200((N) + 0) SEQ200((N) + 200)
 #define SEQ800(N) SEQ400((N) + 0) SEQ400((N) + 400)
 #define SEQ1600(N) SEQ800((N) + 0) SEQ800((N) + 800)
-#define DOUBLE(X) SEQ##X((N) + 0) SEQ##X((N) + X)
-#define SEQ3200(N) DOUBLE(1600)
-#define SEQ6400(N) DOUBLE(3200)
 #define CAT(M, N) M##N
 #define CAT2(M, N) CAT(M, N)
 #define INJECTSEQ(N) CAT2(SEQ, N)(0)
@@ -153,7 +150,7 @@ constexpr Rtype single_visit_tail(Fn&& fn, V&& v){
 		INJECTSEQ(SEQSIZE)
 		
 		default : 
-			if constexpr (var_size > SEQSIZE)
+			if constexpr (var_size - Offset > SEQSIZE)
 				return single_visit_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
 			else 
 				DeclareUnreachable;
@@ -181,7 +178,7 @@ constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
 		INJECTSEQ(SEQSIZE)
 		
 		default : 
-			if constexpr (var_size > SEQSIZE)
+			if constexpr (var_size - Offset > SEQSIZE)
 				return single_visit_w_index_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
 			else 
 				DeclareUnreachable;
@@ -202,7 +199,7 @@ constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
 }
 
 template <unsigned Offset, class Rtype, class Fn, class... Vs, std::size_t... Vx>
-constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...>, Fn&& fn, Vs&&... vs){
+constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...> seq, Fn&& fn, Vs&&... vs){
 	
 	constexpr unsigned var_sizes[sizeof...(Vs)] = {std::decay_t<Vs>::size...};
 	constexpr auto total_size = (std::decay_t<Vs>::size * ...);
@@ -221,8 +218,8 @@ constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...>, Fn&&
 	switch( flat_idx ) {
 		
 		default : 
-			if constexpr (total_size > SEQSIZE)
-				return multi_visit_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
+			if constexpr (total_size - Offset > SEQSIZE)
+				return multi_visit_tail<Offset + SEQSIZE, Rtype>(seq, static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
 			else
 				DeclareUnreachable;
 		
@@ -246,9 +243,6 @@ constexpr decltype(auto) multi_visit(Fn&& fn, Vs&&... vs){
 #undef SEQ400
 #undef SEQ800
 #undef SEQ1600
-#undef DOUBLE
-#undef SEQ3200
-#undef SEQ6400
 #undef DeclareUnreachable
 #undef CAT
 #undef CAT2
