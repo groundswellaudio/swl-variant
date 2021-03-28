@@ -53,8 +53,8 @@ using arr1 = T[1];
 template <std::size_t N, class A>
 struct overload_frag {
 	using type = A;
-    template <class T>
-        requires requires { arr1<A>{std::declval<T>()}; }
+	template <class T>
+		requires requires { arr1<A>{std::declval<T>()}; }
 	auto operator()(A, T&&) -> overload_frag<N, A>;
 }; 
 
@@ -199,7 +199,7 @@ union variant_union<true, A, B> {
 	}
 	
 	INJECT_UNION_SFM_FRAG(variant_union)
-	
+		
 	A a;
 	B b;
 };

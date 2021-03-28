@@ -43,82 +43,6 @@ constexpr unsigned flatten_indices(const auto... args){
 	return res;
 }
 
-//  for visit of two variants of size 24 : clang ~1.2 sec, gcc ~4.45 sec
-
-namespace v2 {
-
-template <unsigned char Idx>
-constexpr void increment(auto& walker, const auto& sizes, unsigned k){
-	walker[k][Idx] = walker[k - 1][Idx] + 1;
-	if (walker[k][Idx] == sizes[Idx]){
-		if constexpr (Idx > 0){
-			walker[k][Idx] = 0;
-			return increment<Idx - 1>(walker, sizes, k);
-		}
-	}
-	else {
-		for (unsigned x = 1; x <= Idx; ++x)
-			walker[k][Idx - x] = walker[k - 1][Idx - x];
-	}
-}
-
-template <unsigned... Sizes>
-constexpr auto make_flat_sequence(){
-	constexpr union_index_t sizes[] = {Sizes...};
-	constexpr unsigned total_size = (Sizes * ...);
-	constexpr union_index_t num_dim = sizeof...(Sizes);
-	using walker_t = union_index_t[sizeof...(Sizes)];
-	array_wrapper<walker_t[total_size]> res {{0}};
-	auto& tab = res.data;
-	
-	for (unsigned k = 1; k < total_size; ++k){
-		increment<num_dim-1>(tab, sizes, k);
-	}
-	
-	return res;
-}
-
-// this build an array of array of all the possibles indices (make_indices)
-// and use it to build the dispatch table (with_table_size::impl)
-template <unsigned NumVariants, class Seq = std::make_integer_sequence<unsigned, NumVariants>>
-struct multi_dispatcher;
-
-template <unsigned NumVariants, unsigned... Vx>
-struct multi_dispatcher<NumVariants, std::integer_sequence<unsigned, Vx...>> {
-	
-	template <unsigned... VarSizes>
-	struct make_indices {
-	
-		static constexpr union_index_t total_size = (VarSizes * ...);
-		static constexpr union_index_t var_sizes[sizeof...(VarSizes)] = {VarSizes...};
-		
-		static constexpr auto indices = make_flat_sequence<VarSizes...>();
-	};
-	
-	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>
-	struct with_table_size;
-	
-	template <unsigned FlatIdx, class Fn, class... Vars>
-	static constexpr decltype(auto) func (Fn fn, Vars... vars){
-		constexpr auto& coord = make_indices<std::decay_t<Vars>::size...>::indices.data[FlatIdx];
-		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template unsafe_get<coord[Vx]>()... );
-	}
-		
-	template <unsigned TableSize, unsigned... Idx>
-	struct with_table_size<TableSize, std::integer_sequence<unsigned, Idx...> > {
-		
-		template <class Fn, class... Vars>
-		static constexpr rtype_visit<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
-			func<Idx, Fn, Vars...>...
-		};
-	};
-};
-
-} // V2 
-
-inline namespace v3 {
-
-
 template <std::size_t N>
 constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[N]){
 	array_wrapper<unsigned[N]> res;
@@ -131,6 +55,8 @@ constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[N]){
 	data[0] = Idx;
 	return res;
 }
+
+namespace v3 {
 
 // this build an array of array of all the possibles indices (make_indices)
 // and use it to build the dispatch table (with_table_size::impl)
@@ -165,7 +91,6 @@ struct multi_dispatcher
 	};
 }; 
 
-}// v3
 
 template <class Fn, class V>
 constexpr decltype(auto) visit(Fn&& fn, V&& v){
@@ -181,6 +106,154 @@ constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
 	using seq = std::make_index_sequence< std::remove_reference_t<V>::size >;
 	return make_dispatcher<seq, true>::template dispatcher<Fn&&, V&&>[v.index()]
 		( static_cast<Fn&&>(fn), static_cast<V&&>(v) );
+}
+
+}// v3
+
+inline namespace v1 {
+
+#if defined(__GNUC__) || defined( __clang__ ) || defined( __INTEL_COMPILER )
+	#define DeclareUnreachable __builtin_unreachable()
+#elif defined (_MSC_VER)
+	#define DeclareUnreachable __assume(false)
+#endif
+
+#define DEC(N) X((N)) X((N) + 1) X((N) + 2) X((N) + 3) X((N) + 4) X((N) + 5) X((N) + 6) X((N) + 7) X((N) + 8) X((N) + 9)
+
+#define SEQ30(N) DEC( (N) + 0 ) DEC( (N) + 10 ) DEC( (N) + 20 ) 
+#define SEQ100(N) SEQ30((N) + 0) SEQ30((N) + 30) SEQ30((N) + 60) DEC((N) + 90) 
+#define SEQ200(N) SEQ100((N) + 0) SEQ100((N) + 100)
+#define SEQ400(N) SEQ200((N) + 0) SEQ200((N) + 200)
+#define SEQ800(N) SEQ400((N) + 0) SEQ400((N) + 400)
+#define SEQ1600(N) SEQ800((N) + 0) SEQ800((N) + 800)
+#define DOUBLE(X) SEQ##X((N) + 0) SEQ##X((N) + X)
+#define SEQ3200(N) DOUBLE(1600)
+#define SEQ6400(N) DOUBLE(3200)
+#define CAT(M, N) M##N
+#define CAT2(M, N) CAT(M, N)
+#define INJECTSEQ(N) CAT2(SEQ, N)(0)
+
+// single-visitation
+
+template <unsigned Offset, class Rtype, class Fn, class V>
+constexpr Rtype single_visit_tail(Fn&& fn, V&& v){
+
+	constexpr auto var_size = std::decay_t<V>::size - Offset;
+	
+	#define X(N) case (N + Offset) : \
+		if constexpr (N + Offset < var_size) { \
+			return static_cast<Fn&&>(fn)( static_cast<V&&>(v).template unsafe_get<N+Offset>() ); \
+			break; \
+		} else DeclareUnreachable;
+
+	#define SEQSIZE 400
+	
+	switch( v.index() ){
+	
+		INJECTSEQ(SEQSIZE)
+		
+		default : 
+			if constexpr (var_size > SEQSIZE)
+				return single_visit_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
+			else 
+				DeclareUnreachable;
+	}
+	
+	#undef X
+	#undef SEQSIZE
+}
+
+template <unsigned Offset, class Rtype, class Fn, class V>
+constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
+
+	constexpr auto var_size = std::decay_t<V>::size;
+	
+	#define X(N) case (N + Offset) : \
+		if constexpr (N + Offset < var_size) { \
+			return static_cast<Fn&&>(fn)( static_cast<V&&>(v).template unsafe_get<N+Offset>(), std::integral_constant<unsigned, N+Offset>{} ); \
+			break; \
+		} else DeclareUnreachable;
+	
+	#define SEQSIZE 400
+	
+	switch( v.index() ){
+	
+		INJECTSEQ(SEQSIZE)
+		
+		default : 
+			if constexpr (var_size > SEQSIZE)
+				return single_visit_w_index_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
+			else 
+				DeclareUnreachable;
+	}
+	
+	#undef X
+	#undef SEQSIZE
+}
+
+template <class Fn, class V>
+constexpr decltype(auto) visit(Fn&& fn, V&& v){
+	return single_visit_tail<0, rtype_visit<Fn&&, V&&>>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
+}
+
+template <class Fn, class V>
+constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
+	return single_visit_w_index_tail<0, rtype_index_visit<Fn&&, V&&>>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
+}
+
+template <unsigned Offset, class Rtype, class Fn, class... Vs, std::size_t... Vx>
+constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...>, Fn&& fn, Vs&&... vs){
+	
+	constexpr unsigned var_sizes[sizeof...(Vs)] = {std::decay_t<Vs>::size...};
+	constexpr auto total_size = (std::decay_t<Vs>::size * ...);
+	
+	const auto flat_idx = flatten_indices< std::decay_t<Vs>::size... >(vs.index()...);
+	
+	#define X(N) case (N + Offset) :  \
+		if constexpr (N + Offset < total_size) { \
+			constexpr auto var_idx = unflatten(N, var_sizes); \
+			return static_cast<Fn&&>(fn)( static_cast<Vs&&>(vs).template unsafe_get<var_idx.data[Vx]>()... ); \
+			break; \
+		} else DeclareUnreachable;
+	
+	#define SEQSIZE 200
+	
+	switch( flat_idx ) {
+		
+		default : 
+			if constexpr (total_size > SEQSIZE)
+				return multi_visit_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
+			else
+				DeclareUnreachable;
+		
+		INJECTSEQ(SEQSIZE)
+	}
+	
+	#undef X
+	#undef SEQSIZE
+}
+
+template <class Fn, class... Vs>
+constexpr decltype(auto) multi_visit(Fn&& fn, Vs&&... vs){
+	using seq = std::make_index_sequence<sizeof...(Vs)>;
+	return multi_visit_tail<0, rtype_visit<Fn&&, Vs&&...>>(seq{}, static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
+}
+
+#undef DEC
+#undef SEQ30
+#undef SEQ100
+#undef SEQ200
+#undef SEQ400
+#undef SEQ800
+#undef SEQ1600
+#undef DOUBLE
+#undef SEQ3200
+#undef SEQ6400
+#undef DeclareUnreachable
+#undef CAT
+#undef CAT2
+#undef INJECTSEQ
+
 }
 
 

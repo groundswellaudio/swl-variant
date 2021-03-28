@@ -252,7 +252,7 @@ class variant : private vimpl::variant_tag {
 	constexpr variant& operator=(T&& t) 
 		noexcept( std::is_nothrow_assignable_v<vimpl::best_overload_match<T&&, Ts...>, T&&> 
 				  && std::is_nothrow_constructible_v<vimpl::best_overload_match<T&&, Ts...>, T&&> )
-	{	
+	{
 		using namespace vimpl;
 		using related_type = best_overload_match<T&&, Ts...>;
 		constexpr auto new_index = find_type<related_type, Ts...>();
@@ -285,8 +285,7 @@ class variant : private vimpl::variant_tag {
 	
 	template <std::size_t Idx, class... Args>
 		requires (Idx < size 
-				  and ( std::is_constructible_v<alternative<Idx>, Args&&...> 
-				  		|| vimpl::bracket_constructible<alternative<Idx>, Args&&...> ) )
+				  and std::is_constructible_v<alternative<Idx>, Args&&...>  )
 	auto& emplace(Args&&... args){
 		using T = alternative<Idx>;
 		
@@ -297,8 +296,6 @@ class variant : private vimpl::variant_tag {
 		
 		if constexpr ( std::is_constructible_v<alternative<Idx>, Args&&...> )
 			new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);
-		else 
-			new( (void*)(&storage.impl.template get<Idx>()) ) T {static_cast<Args&&>(args)...};
 		
 		current = static_cast<index_type>(Idx);
 		return unsafe_get<Idx>();
@@ -367,6 +364,8 @@ class variant : private vimpl::variant_tag {
 	// +================================== methods for internal use
 	// these methods performs no errors checking at all
 	
+	//#define GETEXPR storage.template get<Idx>();
+	
 	template <vimpl::union_index_t Idx>
 	constexpr auto& unsafe_get() & noexcept	{
 		static_assert(Idx < size);
@@ -378,7 +377,7 @@ class variant : private vimpl::variant_tag {
 	constexpr auto&& unsafe_get() && noexcept { 
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
-		return std::move(storage.impl.template get<Idx>()); 
+		return std::move( storage.impl.template get<Idx>() ); 
 	}
 	
 	template <vimpl::union_index_t Idx>
@@ -517,6 +516,8 @@ constexpr const T* get_if(const variant<Ts...>* v) noexcept {
 
 // =============================== visitation (20.7.7)
 
+namespace v1 {
+
 template <class Fn, class... Vs>
 	requires (is_variant<Vs> && ...)
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
@@ -528,14 +529,28 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
 		return vimpl::visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
 	}
 	else {
-		using namespace vimpl;
+		using namespace vimpl::v3;
 		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
 		
 		using size_seq = std::integer_sequence<unsigned, std::decay_t<Vs>::size...>;
 		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs), size_seq>::template with_table_size<max_size>;
-		const auto table_indice = flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
+		const auto table_indice = vimpl::flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
 		return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
 	}
+}
+
+}
+
+template <class Fn, class... Vs>
+constexpr decltype(auto) visit(Fn&& fn, Vs&&... vs){
+	if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
+		if ( (vs.valueless_by_exception() || ...) ) 
+			throw bad_variant_access{"swl::variant : Bad variant access in visit."};
+	
+	if constexpr (sizeof...(Vs) == 1)
+		return vimpl::visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
+	else 
+		return vimpl::visit_with_index(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
 }
 
 template <class Fn>
