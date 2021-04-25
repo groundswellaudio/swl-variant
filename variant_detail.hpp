@@ -44,9 +44,6 @@ using type_pack_element = typename find_type_i<(K != 0 and true_<Ts...>)>::templ
 
 // ============= overload match detector. to be used for variant generic assignment
 
-template <class Dest>
-void check_no_narrowing(Dest(&&)[1]);
-
 template <class T>
 using arr1 = T[1];
 
@@ -315,6 +312,7 @@ using smallest_suitable_integer_type =
 					  Ts...
 					  >;
 
+// why do we need this again? i think something to do with GCC? 
 namespace swap_trait {
 	using std::swap;    
 	

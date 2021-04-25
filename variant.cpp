@@ -24,7 +24,7 @@ int main(){
 	
 	int x = 0;
 	
-	swl::visit( [&x] (auto... args) { }, a, b, c, d );
+	swl::visit( [&x] (auto... args) { }, a );
 	
 	
 } 

@@ -56,59 +56,7 @@ constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[N]){
 	return res;
 }
 
-namespace v3 {
 
-// this build an array of array of all the possibles indices (make_indices)
-// and use it to build the dispatch table (with_table_size::impl)
-template <unsigned NumVariants, class SizeSeq, class AccessSeq = std::make_integer_sequence<unsigned, NumVariants>>
-struct multi_dispatcher;
-
-template <unsigned NumVariants, unsigned... VarSizes, unsigned... Vx>
-struct multi_dispatcher
-	<NumVariants, 
-	std::integer_sequence<unsigned, VarSizes...>, 
-	std::integer_sequence<unsigned, Vx...>
-	> 
-{	
-	static constexpr unsigned var_sizes[] = {VarSizes...};
-	
-	template <unsigned Size, class Seq = std::make_integer_sequence<unsigned, Size>>
-	struct with_table_size;
-	
-	template <unsigned FlatIdx, class Fn, class... Vars>
-	static constexpr decltype(auto) func (Fn fn, Vars... vars){
-		constexpr auto coord = unflatten(FlatIdx, var_sizes);
-		return static_cast<Fn&&>(fn)( static_cast<Vars&&>(vars).template unsafe_get<coord.data[Vx]>()... );
-	}
-		
-	template <unsigned TableSize, unsigned... Idx>
-	struct with_table_size<TableSize, std::integer_sequence<unsigned, Idx...> > {
-		
-		template <class Fn, class... Vars>
-		static constexpr rtype_visit<Fn, Vars...>( *impl[TableSize] )(Fn, Vars...) = {
-			func<Idx, Fn, Vars...>...
-		};
-	};
-}; 
-
-
-template <class Fn, class V>
-constexpr decltype(auto) visit(Fn&& fn, V&& v){
-	DebugAssert(not v.valueless_by_exception());
-	using seq = std::make_index_sequence< std::remove_reference_t<V>::size >;
-	return make_dispatcher<seq, false>::template dispatcher<Fn&&, V&&>[v.index()]
-		( static_cast<Fn&&>(fn), static_cast<V&&>(v) );
-}
-
-template <class Fn, class V>
-constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
-	DebugAssert(not v.valueless_by_exception());
-	using seq = std::make_index_sequence< std::remove_reference_t<V>::size >;
-	return make_dispatcher<seq, true>::template dispatcher<Fn&&, V&&>[v.index()]
-		( static_cast<Fn&&>(fn), static_cast<V&&>(v) );
-}
-
-}// v3
 
 inline namespace v1 {
 
@@ -190,25 +138,60 @@ constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
 
 template <class Fn, class V>
 constexpr decltype(auto) visit(Fn&& fn, V&& v){
-	return single_visit_tail<0, rtype_visit<Fn&&, V&&>>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
+	return single_visit_tail<0, rtype_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
 }
 
 template <class Fn, class V>
 constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
-	return single_visit_w_index_tail<0, rtype_index_visit<Fn&&, V&&>>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
+	return single_visit_w_index_tail<0, rtype_index_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
 }
 
-template <unsigned Offset, class Rtype, class Fn, class... Vs, std::size_t... Vx>
-constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...> seq, Fn&& fn, Vs&&... vs){
+#if 0
+
+	template <unsigned Offset, class Rtype, class Fn, class... Vs, std::size_t... Vx>
+	constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...> seq, Fn&& fn, Vs&&... vs){
 	
+		constexpr unsigned var_sizes[sizeof...(Vs)] = {std::decay_t<Vs>::size...};
+		constexpr auto total_size = (std::decay_t<Vs>::size * ...);
+	
+		const auto flat_idx = flatten_indices< std::decay_t<Vs>::size... >(vs.index()...);
+	
+		#define X(N) case (N + Offset) :  \
+			if constexpr (N + Offset < total_size) { \
+				constexpr auto var_idx = unflatten(N, var_sizes); \
+				return static_cast<Fn&&>(fn)( static_cast<Vs&&>(vs).template unsafe_get<var_idx.data[Vx]>()... ); \
+				break; \
+			} else DeclareUnreachable;
+	
+		#define SEQSIZE 200
+	
+		switch( flat_idx ) {
+		
+			default : 
+				if constexpr (total_size - Offset > SEQSIZE)
+					return multi_visit_tail<Offset + SEQSIZE, Rtype>(seq, static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
+				else
+					DeclareUnreachable;
+		
+			INJECTSEQ(SEQSIZE)
+		}
+	
+		#undef X
+		#undef SEQSIZE
+	}
+	
+#endif
+
+#if 0
+
+template <unsigned Offset, class Rtype, class Fn, class A, class B, class... Vs, std::size_t... Vx>
+constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...> seq, Fn&& fn, Vs&&... vs){
+
 	constexpr unsigned var_sizes[sizeof...(Vs)] = {std::decay_t<Vs>::size...};
 	constexpr auto total_size = (std::decay_t<Vs>::size * ...);
-	
-	const auto flat_idx = flatten_indices< std::decay_t<Vs>::size... >(vs.index()...);
-	
+
 	#define X(N) case (N + Offset) :  \
 		if constexpr (N + Offset < total_size) { \
-			constexpr auto var_idx = unflatten(N, var_sizes); \
 			return static_cast<Fn&&>(fn)( static_cast<Vs&&>(vs).template unsafe_get<var_idx.data[Vx]>()... ); \
 			break; \
 		} else DeclareUnreachable;
@@ -216,25 +199,20 @@ constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...> seq, 
 	#define SEQSIZE 200
 	
 	switch( flat_idx ) {
-		
+	
 		default : 
 			if constexpr (total_size - Offset > SEQSIZE)
 				return multi_visit_tail<Offset + SEQSIZE, Rtype>(seq, static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
 			else
 				DeclareUnreachable;
-		
+	
 		INJECTSEQ(SEQSIZE)
 	}
-	
+
 	#undef X
 	#undef SEQSIZE
 }
-
-template <class Fn, class... Vs>
-constexpr decltype(auto) multi_visit(Fn&& fn, Vs&&... vs){
-	using seq = std::make_index_sequence<sizeof...(Vs)>;
-	return multi_visit_tail<0, rtype_visit<Fn&&, Vs&&...>>(seq{}, static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
-}
+#endif
 
 #undef DEC
 #undef SEQ30

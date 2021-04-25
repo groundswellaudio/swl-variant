@@ -7,13 +7,21 @@
 #include <new>
 #include <limits>
 
+
+#define FWD(x) static_cast<decltype(x)&&>(x)
+#define MOV(x) static_cast< std::remove_reference_t<decltype(x)>&& >(x)
+
+// a macro-based knob for this is ok, this isn't going to 
+// cause problems if the value changes for differing includes
+// anyway, but what do i do about constexpr emplace and std::construct_at?
+// use a __has_include trick? 
 #ifdef SWL_VARIANT_USE_STD_HASH
 	#include <functional>
 #endif
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
-	#define DebugAssert(X) if (not (X)) std::cout << "Variant : assertion failed : [" << #X << "] at line : " << __LINE__ << std::endl;
+	#define DebugAssert(X) if (not (X)) std::cout << "Variant : assertion failed : [" << #X << "] at line : " << __LINE__ << "\n";
 	#undef SWL_VARIANT_DEBUG
 #else 
 	#define DebugAssert(X) 
@@ -22,13 +30,13 @@
 namespace swl {
 
 class bad_variant_access : std::exception {
+	const char* message = " "; // llvm test requires a well formed what() on default init
 	public : 
 	bad_variant_access(const char* str) noexcept : message{str} {}
 	bad_variant_access() noexcept = default;
 	bad_variant_access(const bad_variant_access&) noexcept = default;
 	bad_variant_access& operator= (const bad_variant_access&) noexcept = default;
 	const char* what() const noexcept override { return message; }
-	const char* message = " "; // llvm test requires a well formed what() on default init
 };
 
 namespace vimpl { 
@@ -145,6 +153,7 @@ class variant : private vimpl::variant_tag {
 	}
 	
 	// generic constructor
+	// FIXME : do these constraints really match the standard? 
 	template <class T, class M = vimpl::best_overload_match<T&&, Ts...>, class D = std::decay_t<T>>
 	constexpr variant(T&& t)
 		noexcept ( std::is_nothrow_constructible_v<M, T&&> )
@@ -232,17 +241,23 @@ class variant : private vimpl::variant_tag {
 		using namespace vimpl;
 		using related_type = best_overload_match<T&&, Ts...>;
 		constexpr auto new_index = find_type<related_type, Ts...>();
+		
 		if (current == new_index)
-			unsafe_get<new_index>() = static_cast<T&&>(t);
+			unsafe_get<new_index>() = FWD(t);
 		else {
-			if constexpr ( std::is_nothrow_constructible_v<related_type, T> 
-						   or not std::is_nothrow_move_constructible_v<related_type> )
-				emplace<new_index>( static_cast<T&&>(t) );
+		
+			constexpr bool do_simple_emplace = 
+				std::is_nothrow_constructible_v<related_type, T> 
+				or not std::is_nothrow_move_constructible_v<related_type>;
+				
+			if constexpr ( do_simple_emplace )
+				this->emplace<new_index>( FWD(t) );
 			else {
 				related_type tmp = t;
-				emplace<new_index>(std::move(tmp));
+				this->emplace<new_index>( MOV(tmp) );
 			}
 		}
+		
 		return *this;
 	}
 	
@@ -269,7 +284,7 @@ class variant : private vimpl::variant_tag {
 		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
 			current = npos;
 		
-		emplace_no_dtor<Idx>(static_cast<Args&&>(args)...);
+		emplace_no_dtor<Idx>( FWD(args)...);
 		return unsafe_get<Idx>();
 	}
 	
@@ -292,21 +307,27 @@ class variant : private vimpl::variant_tag {
 				   && (vimpl::swap_trait::template nothrow<Ts> && ...) )
 		requires (has_move_ctor && (vimpl::swap_trait::template able<Ts> && ...))
 	{
+		
 		if constexpr (can_be_valueless){
+			// if one is valueless, move the element form the non-empty variant,
+			// reset it, and set it to valueless
+			constexpr auto impl_one_valueless = [] (auto&& full, auto& empty) {
+				vimpl::visit_with_index( FWD(full), vimpl::emplace_no_dtor_from_elem<variant&>{empty} );
+				full.reset_no_check();
+				full.current = npos;
+			};
+			
 			if (index() == npos){
+				// if both are valueless, do nothing
 				if (o.index() == npos) 
 					return;
 				else {
-					vimpl::visit_with_index( std::move(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
-					o.reset_no_check();
-					o.current = npos;
+					impl_one_valueless( MOV(o), *this );
 					return;
 				}
 			}
 			else if (o.index() == npos){
-				vimpl::visit_with_index( std::move(*this), vimpl::emplace_no_dtor_from_elem<variant&>{o} );
-				reset_no_check();
-				current = npos;
+				impl_one_valueless( MOV(*this), o );
 				return;
 			}
 		}
@@ -320,25 +341,27 @@ class variant : private vimpl::variant_tag {
 			});
 		}
 		else {
-			// TODO : replace this by multi visit with index
 			vimpl::visit_with_index( o, [&o, this] (auto&& elem, auto index_) {
 				using idx_t = decltype(index_);
-				vimpl::visit_with_index(*this, [this, &o, &elem, index_] (auto&& this_elem, auto this_index) {
+				vimpl::visit_with_index(*this, [this, &o, &elem] (auto&& this_elem, auto this_index) {
 				
-					auto tmp { std::move(this_elem) };
+					auto tmp { MOV(this_elem) };
 					
 					// destructing the elements right here save us another level of indirection
 					vimpl::destruct<alternative<this_index>>(this_elem);
 					
 					if constexpr (not std::is_nothrow_move_constructible_v<alternative<idx_t::value>> )
 						this->current = npos;
-					this->emplace_no_dtor<idx_t::value>( std::move(elem) );
+						
+					// ok, we just destroyed the element in this, don't call the dtor again
+					this->emplace_no_dtor<idx_t::value>( MOV(elem) );
 					
+					// we could refactor this
 					vimpl::destruct<alternative<idx_t::value>>(elem);
-					
 					if constexpr (not std::is_nothrow_move_constructible_v<alternative<this_index>> )
 						o.current = npos;
-					o.template emplace_no_dtor< (unsigned)(this_index) >( std::move(tmp) );
+					o.template emplace_no_dtor< (unsigned)(this_index) >( MOV(tmp) );
+					
 				});
 			});	
 		}
@@ -358,7 +381,7 @@ class variant : private vimpl::variant_tag {
 	constexpr auto&& unsafe_get() && noexcept { 
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
-		return std::move( storage.impl.template get<Idx>() ); 
+		return MOV( storage.impl.template get<Idx>() ); 
 	}
 	
 	template <vimpl::union_index_t Idx>
@@ -372,12 +395,14 @@ class variant : private vimpl::variant_tag {
 	constexpr const auto&& unsafe_get() const && noexcept {
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
-		return std::move(unsafe_get<Idx>());
+		return MOV(unsafe_get<Idx>());
 	}
 	
 	private : 
 	
 	// can be used directly only when the variant is in a known empty state
+	// FIXME : either hand-roll a version of adressof to use here, or 
+	// include <memory> and use the std version 
 	template <unsigned Idx, class... Args>
 	constexpr void emplace_no_dtor(Args&&... args){
 		using T = alternative<Idx>;
@@ -411,7 +436,7 @@ class variant : private vimpl::variant_tag {
 				return;
 			}
 		
-		vimpl::visit_with_index( static_cast<Other&&>(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
+		vimpl::visit_with_index( FWD(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
 	}
 	
 	// assign from another variant
@@ -427,7 +452,7 @@ class variant : private vimpl::variant_tag {
 			}
 		}
 		DebugAssert(not o.valueless_by_exception());
-		vimpl::visit_with_index( static_cast<Other&&>(o), static_cast<Fn&&>(fn) );
+		vimpl::visit_with_index( FWD(o), FWD(fn) );
 	}
 	
 	template <class T>
@@ -462,12 +487,12 @@ constexpr const auto& get (const variant<Ts...>& v){
 
 template <std::size_t Idx, class... Ts>
 constexpr auto&& get (variant<Ts...>&& v){
-	return std::move( swl::get<Idx>(v) );
+	return MOV( swl::get<Idx>(v) );
 }
 
 template <std::size_t Idx, class... Ts>
 constexpr const auto&& get (const variant<Ts...>&& v){
-	return std::move( swl::get<Idx>(v) );
+	return MOV( swl::get<Idx>(v) );
 }
 
 // ========= get by type
@@ -484,27 +509,31 @@ constexpr const T& get (const variant<Ts...>& v){
 
 template <class T, class... Ts>
 constexpr T&& get (variant<Ts...>&& v){
-	return swl::get<vimpl::find_type<T, Ts...>()>( static_cast<variant<Ts...>&&>(v) );
+	return swl::get<vimpl::find_type<T, Ts...>()>( FWD(v) );
 }
 
 template <class T, class... Ts>
 constexpr const T&& get (const variant<Ts...>&& v){
-	return swl::get<vimpl::find_type<T, Ts...>()>(decltype(v)(v));
+	return swl::get<vimpl::find_type<T, Ts...>()>( FWD(v) );
 }
 
 // ===== get_if by index
 
+// FIXME : put the return type in the signature here
+// FIXME : use addressof here
 template <std::size_t Idx, class... Ts>
 constexpr const auto* get_if(const variant<Ts...>* v) noexcept {
+	using rtype = typename variant<Ts...>::template alternative<Idx>;
 	if (v == nullptr || v->index() != Idx) 
-		return decltype(&v->template unsafe_get<Idx>()){nullptr};
+		return rtype{nullptr};
 	else return &v->template unsafe_get<Idx>();
 }
 
 template <std::size_t Idx, class... Ts>
 constexpr auto* get_if(variant<Ts...>* v) noexcept {
+	using rtype = typename variant<Ts...>::template alternative<Idx>;
 	if (v == nullptr || v->index() != Idx) 
-		return decltype(&v->template unsafe_get<Idx>()){nullptr};
+		return rtype{nullptr};
 	else return &v->template unsafe_get<Idx>();
 }
 
@@ -524,31 +553,6 @@ constexpr const T* get_if(const variant<Ts...>* v) noexcept {
 
 // =============================== visitation (20.7.7)
 
-namespace v1 {
-
-template <class Fn, class... Vs>
-	requires (is_variant<Vs> && ...)
-constexpr decltype(auto) visit(Fn&& fn, Vs&&... vars){
-	if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
-		if ( (vars.valueless_by_exception() || ...) ) 
-			throw bad_variant_access{"swl::variant : Bad variant access in visit."};
-				
-	if constexpr (sizeof...(Vs) == 1){
-		return vimpl::visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...);
-	}
-	else {
-		using namespace vimpl::v3;
-		constexpr unsigned max_size = (std::decay_t<Vs>::size * ...);
-		
-		using size_seq = std::integer_sequence<unsigned, std::decay_t<Vs>::size...>;
-		using dispatcher_t = typename multi_dispatcher<sizeof...(Vs), size_seq>::template with_table_size<max_size>;
-		const auto table_indice = vimpl::flatten_indices<std::decay_t<Vs>::size...>(vars.index()...);
-		return dispatcher_t::template impl<Fn&&, Vs&&...>[ table_indice ]( static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)... );
-	}
-}
-
-}
-
 template <class Fn, class... Vs>
 constexpr decltype(auto) visit(Fn&& fn, Vs&&... vs){
 	if constexpr ( (std::decay_t<Vs>::can_be_valueless || ...) )
@@ -556,20 +560,21 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vs){
 			throw bad_variant_access{"swl::variant : Bad variant access in visit."};
 	
 	if constexpr (sizeof...(Vs) == 1)
-		return vimpl::visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
+		return vimpl::visit( FWD(fn), FWD(vs)...);
 	else 
-		return vimpl::multi_visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
+		return;
+		//return vimpl::multi_visit( FWD(fn), FWD(vs)...);
 }
 
 template <class Fn>
 constexpr decltype(auto) visit(Fn&& fn){
-	return static_cast<Fn&&>(fn)();
+	return FWD(fn)();
 }
 
 template <class R, class Fn, class... Vs>
 	requires (is_variant<Vs> && ...)
 constexpr R visit(Fn&& fn, Vs&&... vars){
-	return static_cast<R>( swl::visit(static_cast<Fn&&>(fn), static_cast<Vs&&>(vars)...) );
+	return static_cast<R>( swl::visit( FWD(fn), FWD(vars)...) );
 }
 
 // ============================== relational operators (20.7.6)
@@ -683,5 +688,7 @@ void swap(variant<Ts...>& a, variant<Ts...>& b)
 #endif // std-hash
 
 #undef DebugAssert
+#undef FWD
+#undef MOV
 
 #endif // eof
