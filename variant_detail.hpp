@@ -212,8 +212,9 @@ union variant_top_union {
 	constexpr variant_top_union() = default;
 	constexpr variant_top_union(valueless_construct_t) : dummy{} {}
 	
-	template <class... Args>
-	constexpr variant_top_union(Args&&... args) : impl{static_cast<Args&&>(args)...} {}
+	template <std::size_t Idx, class... Args>
+	constexpr variant_top_union(in_place_index_t<Idx> tag, Args&&... args) 
+	: impl{tag, static_cast<Args&&>(args)...} {}
 	
 	using B = dummy_type;
 	
@@ -311,7 +312,7 @@ namespace swap_trait {
 template <class T>
 using uncvref_t = std::remove_cvref_t<T>;
 
-#ifdef SWL_CPP_VARIANT_USE_STD_HASH
+#ifdef SWL_VARIANT_USE_STD_HASH
 	template <class T>
 	inline constexpr bool has_std_hash = requires (T t) { 
 		std::size_t( ::std::hash< uncvref_t<T> >{}(t) ); 

@@ -489,7 +489,7 @@ class variant : private vimpl::variant_tag {
 	}
 	
 	template <class T>
-	friend struct emplace_no_dtor_from_elem;
+	friend struct vimpl::emplace_no_dtor_from_elem;
 	
 	storage_t storage;
 	index_type current;
@@ -719,7 +719,7 @@ constexpr auto&& unsafe_get(Var&& var) noexcept {
 				if constexpr ( swl::variant<Ts...>::can_be_valueless )
 					if (v.valueless_by_exception()) return -1;
 		
-				return v.visit_with_index( [] (auto& elem, auto index_) {
+				return swl::vimpl::visit_with_index( v, [] (auto& elem, auto index_) {
 					using type = std::remove_cvref_t<decltype(elem)>;
 					return std::hash<type>{}(elem) + index_;
 				});

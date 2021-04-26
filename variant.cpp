@@ -17,12 +17,14 @@ int main(){
 	
 	using namespace std;
 	
+	static_assert( std::is_trivially_copyable_v<const int> );
+	
 	swl::variant<PACK1> a, b, c, d;
 	
-	a.emplace<4>(2);
+	//a.emplace<1>(2);
 	
 	int x = 0;
 	
-	swl::visit( [] (auto... args) {}, a );
+	//swl::visit( [] (auto... args) {}, a );
 	
 } 
