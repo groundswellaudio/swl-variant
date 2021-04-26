@@ -17,20 +17,12 @@ int main(){
 	
 	using namespace std;
 	
-	
 	swl::variant<PACK1> a, b, c, d;
 	
 	a.emplace<4>(2);
 	
 	int x = 0;
 	
-	auto* p = get_if<4>(&a);
-	
-	const auto cp = a;
-	
-	auto* ptr = get_if<4>(&cp);
-	
-	
-	*p = 5;
+	swl::visit( [] (auto... args) {}, a, b, c, d);
 	
 } 

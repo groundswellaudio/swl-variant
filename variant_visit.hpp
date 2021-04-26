@@ -2,9 +2,6 @@
 
 // ========================= visit dispatcher
 
-template <class Seq, bool PassIndex>
-struct make_dispatcher;
-
 template <class Fn, class... Vars>
 using rtype_visit = decltype( ( std::declval<Fn>()( std::declval<Vars>().template unsafe_get<0>()... ) ) );
 
@@ -29,8 +26,6 @@ inline namespace v1 {
 #define SEQ100(N) SEQ30((N) + 0) SEQ30((N) + 30) SEQ30((N) + 60) DEC((N) + 90) 
 #define SEQ200(N) SEQ100((N) + 0) SEQ100((N) + 100)
 #define SEQ400(N) SEQ200((N) + 0) SEQ200((N) + 200)
-#define SEQ800(N) SEQ400((N) + 0) SEQ400((N) + 400)
-#define SEQ1600(N) SEQ800((N) + 0) SEQ800((N) + 800)
 #define CAT(M, N) M##N
 #define CAT2(M, N) CAT(M, N)
 #define INJECTSEQ(N) CAT2(SEQ, N)(0)
@@ -48,7 +43,7 @@ constexpr Rtype single_visit_tail(Fn&& fn, V&& v){
 			break; \
 		} else DeclareUnreachable();
 
-	#define SEQSIZE 400
+	#define SEQSIZE 200
 	
 	switch( v.index() ){
 	
@@ -76,7 +71,7 @@ constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
 			break; \
 		} else DeclareUnreachable();
 	
-	#define SEQSIZE 400
+	#define SEQSIZE 200
 	
 	switch( v.index() ){
 	
@@ -98,8 +93,10 @@ constexpr decltype(auto) visit(Fn&& fn, V&& v){
 	return vimpl::single_visit_tail<0, rtype_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
 }
 
+// unlike other visit functions, this takes the variant first! 
+// this is confusing, but make the client code easier to read
 template <class Fn, class V>
-constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
+constexpr decltype(auto) visit_with_index(V&& v, Fn&& fn){
 	return vimpl::single_visit_w_index_tail<0, rtype_index_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
 }
 
@@ -126,8 +123,6 @@ constexpr decltype(auto) multi_visit(Fn&& fn, Head&& head, Tail&&... tail){
 #undef SEQ100
 #undef SEQ200
 #undef SEQ400
-#undef SEQ800
-#undef SEQ1600
 #undef DeclareUnreachable
 #undef CAT
 #undef CAT2

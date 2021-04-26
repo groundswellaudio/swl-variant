@@ -6,14 +6,12 @@ struct array_wrapper {
 	T data;
 };
 
-// find the first position of the type
-template <class T, class... Ts>
-constexpr std::size_t find_type(){
-	constexpr auto size = sizeof...(Ts);
-	constexpr bool same[size] = {std::is_same_v<T, Ts>...};
-	for (std::size_t k = 0; k < size; ++k)
-		if (same[k]) return k;
-	return size;
+template <int N>
+constexpr int find_first_true(bool (&&arr)[N]){
+	for (int k = 0; k < N; ++k)
+		if (arr[k]) 
+			return k;
+	return -1;
 }
 
 template <class T, class... Ts>
@@ -334,7 +332,7 @@ using uncvref_t = std::remove_cvref_t<T>;
 #endif
 
 template <class T>
-inline T* addressof( T& obj ) noexcept {
+inline constexpr T* addressof( T& obj ) noexcept {
 	return reinterpret_cast<T*>
 	(&const_cast<char&>(reinterpret_cast<const volatile char&>(obj)));
 }

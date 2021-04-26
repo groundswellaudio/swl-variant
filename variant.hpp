@@ -109,9 +109,6 @@ class variant : private vimpl::variant_tag {
 	static constexpr bool trivial_move_assign  = is_trivial || std::is_trivially_move_assignable_v<storage_t>;
 	static constexpr bool trivial_dtor         = std::is_trivially_destructible_v<storage_t>;
 	
-	template <bool PassIndex = false>
-	using make_dispatcher_t = vimpl::make_dispatcher<std::make_index_sequence<sizeof...(Ts)>, PassIndex>;
-	
 	public : 
 	
 	template <std::size_t Idx>
@@ -124,6 +121,9 @@ class variant : private vimpl::variant_tag {
 	using index_type = vimpl::smallest_suitable_integer_type<sizeof...(Ts) + can_be_valueless, unsigned char, unsigned short, unsigned>;
 	
 	static constexpr index_type npos = -1;
+	
+	template <class T>
+	static constexpr int index_of = vimpl::find_first_true( {std::is_same_v<T, Ts>...} );
 	
 	// ============================================= constructors (20.7.3.2)
 	
@@ -166,7 +166,7 @@ class variant : private vimpl::variant_tag {
 	constexpr variant(T&& t)
 		noexcept ( std::is_nothrow_constructible_v<M, T&&> )
 		requires ( not std::is_same_v<D, variant> and not std::is_base_of_v<vimpl::emplacer_tag, D> )
-	: variant{ in_place_index< vimpl::find_type<M, Ts... >() >, static_cast<T&&>(t) }
+	: variant{ in_place_index< index_of<M> >, static_cast<T&&>(t) }
 	{}
 	
 	// construct at index
@@ -180,7 +180,7 @@ class variant : private vimpl::variant_tag {
 	template <class T, class... Args>
 		requires (vimpl::appears_exactly_once<T, Ts...> && std::is_constructible_v<T, Args&&...>)
 	explicit constexpr variant(in_place_type_t<T> tag, Args&&... args)
-	: variant{ in_place_index<vimpl::find_type<T, Ts...>()>, static_cast<Args&&>(args)... }
+	: variant{ in_place_index< index_of<T> >, static_cast<Args&&>(args)... }
 	{}
 	
 	// ================================ destructors (20.7.3.3)
@@ -202,8 +202,8 @@ class variant : private vimpl::variant_tag {
 	constexpr variant& operator=(const variant& rhs)
 		requires (has_copy_assign and not(trivial_copy_assign && trivial_copy_ctor))
 	{
-		assign_from(rhs, [this] (const auto& elem, auto index_cst) {
-			if (index() == index_cst)
+		vimpl::visit_with_index(rhs, [this] (const auto& elem, auto index_cst) {
+			if (this->index() == index_cst)
 				this->unsafe_get<index_cst>() = elem;
 			else{
 				using type = alternative<index_cst>;
@@ -212,7 +212,7 @@ class variant : private vimpl::variant_tag {
 					this->emplace<index_cst>(elem);
 				else{
 					alternative<index_cst> tmp = elem;
-					this->emplace<index_cst>(std::move(tmp));
+					this->emplace<index_cst>( MOV(tmp) );
 				}
 			}
 		});
@@ -229,9 +229,9 @@ class variant : private vimpl::variant_tag {
 		noexcept ((std::is_nothrow_move_constructible_v<Ts> && ...) && (std::is_nothrow_move_assignable_v<Ts> && ...))
 		requires (has_move_assign && has_move_ctor and not(trivial_move_assign and trivial_move_ctor and trivial_dtor))
 	{
-		assign_from(FWD(o), [this] (auto&& elem, auto index_cst) 
+		vimpl::visit_with_index( FWD(o), [this] (auto&& elem, auto index_cst) 
 		{
-			if (index() == index_cst)
+			if (this->index() == index_cst)
 				this->unsafe_get<index_cst>() = MOV(elem);
 			else 
 				this->emplace<index_cst>( MOV(elem) );
@@ -248,7 +248,7 @@ class variant : private vimpl::variant_tag {
 	{
 		using namespace vimpl;
 		using related_type = best_overload_match<T&&, Ts...>;
-		constexpr auto new_index = find_type<related_type, Ts...>();
+		constexpr auto new_index = index_of<related_type>;
 		
 		if (current == new_index)
 			this->unsafe_get<new_index>() = FWD(t);
@@ -273,17 +273,24 @@ class variant : private vimpl::variant_tag {
 	
 	template <class T, class... Args>
 		requires std::is_constructible_v<T, Args&&...>
+	
+	#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
+		constexpr
+	#endif
 	T& emplace(Args&&... args){
 		static_assert( vimpl::appears_exactly_once<T, Ts...>,  
 			"Variant emplace : the type to be emplaced must appear exactly once." ); 
 		
-		constexpr auto Index = vimpl::find_type<T, Ts...>();	
+		constexpr auto Index = index_of<T>;
 		(void) emplace<Index>(static_cast<Args&&>(args)...);
 		return unsafe_get<Index>();
 	}
 	
 	template <std::size_t Idx, class... Args>
 		requires (Idx < size and std::is_constructible_v<alternative<Idx>, Args&&...>  )
+	#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
+		constexpr
+	#endif
 	auto& emplace(Args&&... args){
 		using T = alternative<Idx>;
 		
@@ -310,6 +317,7 @@ class variant : private vimpl::variant_tag {
 	
 	// =================================== swap (20.7.3.7)
 	
+	constexpr 
 	void swap(variant& o) 
 		noexcept ( (std::is_nothrow_move_constructible_v<Ts> && ...) 
 				   && (vimpl::swap_trait::template nothrow<Ts> && ...) )
@@ -411,8 +419,6 @@ class variant : private vimpl::variant_tag {
 	private : 
 	
 	// can be used directly only when the variant is in a known empty state
-	// FIXME : either hand-roll a version of adressof to use here, or 
-	// include <memory> and use the std version 
 	template <unsigned Idx, class... Args>
 	constexpr void emplace_no_dtor(Args&&... args){
 		using T = alternative<Idx>;
@@ -457,22 +463,6 @@ class variant : private vimpl::variant_tag {
 		vimpl::visit_with_index( FWD(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
 	}
 	
-	// assign from another variant
-	template <class Other, class Fn>
-	constexpr void assign_from(Other&& o, Fn&& fn){
-		if constexpr (can_be_valueless){
-			if (o.index() == npos){
-				if (current != npos){
-					reset_no_check();
-					current = npos;
-				}
-				return;
-			}
-		}
-		DebugAssert(not o.valueless_by_exception());
-		vimpl::visit_with_index( FWD(o), FWD(fn) );
-	}
-	
 	template <class T>
 	friend struct emplace_no_dtor_from_elem;
 	
@@ -485,7 +475,7 @@ class variant : private vimpl::variant_tag {
 template <class T, class... Ts>
 constexpr bool holds_alternative(const variant<Ts...>& v) noexcept {
 	static_assert( (std::is_same_v<T, Ts> || ...), "Requested type is not contained in the variant" );
-	constexpr auto Index = vimpl::find_type<T, Ts...>();
+	constexpr auto Index = variant<Ts...>::template index_of<T>;
 	return v.index() == Index;
 }
 
@@ -517,22 +507,22 @@ constexpr const auto&& get (const variant<Ts...>&& v){
 
 template <class T, class... Ts>
 constexpr T& get (variant<Ts...>& v){
-	return swl::get<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get< variant<Ts...>::template index_of<T> >(v);
 }
 
 template <class T, class... Ts>
 constexpr const T& get (const variant<Ts...>& v){
-	return swl::get<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get< variant<Ts...>::template index_of<T> >(v);
 }
 
 template <class T, class... Ts>
 constexpr T&& get (variant<Ts...>&& v){
-	return swl::get<vimpl::find_type<T, Ts...>()>( FWD(v) );
+	return swl::get< variant<Ts...>::template index_of<T> >( FWD(v) );
 }
 
 template <class T, class... Ts>
 constexpr const T&& get (const variant<Ts...>&& v){
-	return swl::get<vimpl::find_type<T, Ts...>()>( FWD(v) );
+	return swl::get< variant<Ts...>::template index_of<T> >( FWD(v) );
 }
 
 // ===== get_if by index
@@ -562,13 +552,13 @@ constexpr auto* get_if(variant<Ts...>* v) noexcept {
 template <class T, class... Ts>
 constexpr T* get_if(variant<Ts...>* v) noexcept {
 	static_assert( (std::is_same_v<T, Ts> || ...), "Requested type is not contained in the variant" );
-	return swl::get_if<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get_if< variant<Ts...>::template index_of<T> >(v);
 }
 
 template <class T, class... Ts>
 constexpr const T* get_if(const variant<Ts...>* v) noexcept {
 	static_assert( (std::is_same_v<T, Ts> || ...), "Requested type is not contained in the variant" );
-	return swl::get_if<vimpl::find_type<T, Ts...>()>(v);
+	return swl::get_if< variant<Ts...>::template index_of<T> >(v);
 }
 
 // =============================== visitation (20.7.7)
@@ -625,7 +615,7 @@ constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 	if ( v1.index() == v2.index() ){
 		return vimpl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
 			return (elem < v2.template unsafe_get<index>());
-		});
+		} );
 	}
 	else
 		return (v1.index() < v2.index());
@@ -669,11 +659,26 @@ constexpr bool operator>=(monostate, monostate) noexcept { return true; }
 // ===================================== specialized algorithms (20.7.10)
 
 template <class... Ts>
-void swap(variant<Ts...>& a, variant<Ts...>& b)
+constexpr void swap(variant<Ts...>& a, variant<Ts...>& b)
 	noexcept (noexcept(a.swap(b)))
 	requires requires { a.swap(b); }
 {
 	a.swap(b);
+}
+
+// ===================================== extensions (unsafe_get)
+
+template <std::size_t Idx, class Var>
+	requires is_variant<Var>
+constexpr auto&& unsafe_get(Var&& var) noexcept {
+	static_assert( Idx < std::decay_t<Var>::size, "Index exceeds the variant size." );
+	return FWD(var).template unsafe_get<Idx>();
+}
+
+template <class T, class Var>
+	requires is_variant<Var>
+constexpr auto&& unsafe_get(Var&& var) noexcept {
+	return swl::unsafe_get< std::decay_t<Var>::template index_of<T> >( FWD(var) );
 }
 
 } // SWL
