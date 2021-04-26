@@ -9,8 +9,8 @@
 #include <cassert>
 
 struct test_result {
-	bool has_compiled;
 	std::string output;
+	bool has_compiled;
 };
 
 test_result compile_and_run(std::string_view path){
@@ -29,9 +29,9 @@ test_result compile_and_run(std::string_view path){
 	if (fs::exists(output_name)){
 		pipecmd::readable syscmd;
 		syscmd.open(output_name);
-		return {true, syscmd.read()};
+		return {syscmd.read(), true};
 	}
-	else return {false, ""};
+	else return {"", false};
 }
 
 bool is_fail_test(std::string_view filepath){
@@ -41,7 +41,7 @@ bool is_fail_test(std::string_view filepath){
 bool perform_fail_test(std::string_view filepath){
 	auto res = compile_and_run(filepath);
 	if (res.has_compiled)
-		std::cout << "Failed test : " << filepath << ", (shouldn't have compiled)." << std::endl;
+		std::cout << "Failed test : " << filepath << ", (shouldn't have compiled). \n";
 	return not res.has_compiled;
 }
 
@@ -58,20 +58,20 @@ bool perform_test(std::string_view filepath){
 	
 	auto res = compile_and_run(filepath);
 	if (not res.has_compiled){
-		std::cout << "Failed test : " << filepath << ", (should have compiled)." << std::endl;
+		std::cout << "Failed test : " << filepath << ", (should have compiled). \n";
 		return false;
 	}
 	
 	if ( contains(res.output, failure_token) ){
-		std::cout << "Failed test : " << filepath << ", failed assertion" << std::endl;
+		std::cout << "Failed test : " << filepath << ", failed assertion \n";
 		return false;
 	}
 	if ( not contains(res.output, expected_exit_token) ){
-		std::cout << "Failed test : " << filepath << ", unexpected exit." << std::endl;
+		std::cout << "Failed test : " << filepath << ", unexpected exit. \n";
 		return false;
 	}
 	
-	std::cout << "Test " << filepath << " successful. " << std::endl;
+	std::cout << "Test " << filepath << " successful. \n";
 	
 	return true;
 }

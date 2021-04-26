@@ -317,18 +317,20 @@ class variant : private vimpl::variant_tag {
 				full.current = npos;
 			};
 			
-			if (index() == npos){
-				// if both are valueless, do nothing
-				if (o.index() == npos) 
-					return;
-				else {
+			switch( this->index() == npos + (o.index() == npos) * 2 ){	
+				case 0 : 
+					break;
+				case 1 : 
+					// "this" is valueless
 					impl_one_valueless( MOV(o), *this );
 					return;
-				}
-			}
-			else if (o.index() == npos){
-				impl_one_valueless( MOV(*this), o );
-				return;
+				case 2 : 
+					// "other" is valueless
+					impl_one_valueless( MOV(*this), o );
+					return;
+				case 3 : 
+					// both are valueless, do nothing
+					return;
 			}
 		}
 		
@@ -562,8 +564,7 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vs){
 	if constexpr (sizeof...(Vs) == 1)
 		return vimpl::visit( FWD(fn), FWD(vs)...);
 	else 
-		return;
-		//return vimpl::multi_visit( FWD(fn), FWD(vs)...);
+		return vimpl::multi_visit( FWD(fn), FWD(vs)...);
 }
 
 template <class Fn>

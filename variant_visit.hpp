@@ -13,29 +13,6 @@ using rtype_index_visit = decltype( ( std::declval<Fn>()( std::declval<Var>().te
 								 	  std::integral_constant<std::size_t, 0>{} ) ) 
 								  );
 
-// for simple visitation 
-template <std::size_t... Idx>
-struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, false> {
-	
-	template <class Fn, class Var>
-	static constexpr rtype_visit<Fn, Var> (*dispatcher[sizeof...(Idx)]) (Fn, Var) = {
-		+[] (Fn fn, Var var) -> decltype(auto) {
-				return static_cast<Fn&&>(fn)( static_cast<Var&&>(var).template unsafe_get<Idx>() );
-		}...
-	};
-};
-								 	
-template <std::size_t... Idx>
-struct make_dispatcher<std::integer_sequence<std::size_t, Idx...>, true> {
-	
-	template <class Fn, class Var>
-	static constexpr rtype_index_visit<Fn, Var>(*dispatcher[sizeof...(Idx)]) (Fn, Var) = {
-		+[] (Fn fn, Var var) -> decltype(auto) {
-			return static_cast<Fn&&>(fn)(static_cast<Var&&>(var).template unsafe_get<Idx>(), std::integral_constant<unsigned, Idx>{});
-		}... 
-	};
-};
-
 template <unsigned... Sizes>
 constexpr unsigned flatten_indices(const auto... args){	
 	unsigned res = 0;
@@ -55,8 +32,6 @@ constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[N]){
 	data[0] = Idx;
 	return res;
 }
-
-
 
 inline namespace v1 {
 
@@ -146,73 +121,23 @@ constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
 	return single_visit_w_index_tail<0, rtype_index_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
 }
 
-#if 0
-
-	template <unsigned Offset, class Rtype, class Fn, class... Vs, std::size_t... Vx>
-	constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...> seq, Fn&& fn, Vs&&... vs){
+template <class Fn, class Head, class... Tail>
+constexpr decltype(auto) multi_visit(Fn&& fn, Head&& head, Tail&&... tail){
 	
-		constexpr unsigned var_sizes[sizeof...(Vs)] = {std::decay_t<Vs>::size...};
-		constexpr auto total_size = (std::decay_t<Vs>::size * ...);
+	// visit them one by one, starting with the last
+	auto vis = [&fn, &head] (auto&&... args) -> decltype(auto) {
+		return visit( [&fn, &args...] (auto&& elem) -> decltype(auto) {
+			return FWD(fn)( FWD(elem), FWD(args)... );
+		}, FWD(head) );
+	};
 	
-		const auto flat_idx = flatten_indices< std::decay_t<Vs>::size... >(vs.index()...);
-	
-		#define X(N) case (N + Offset) :  \
-			if constexpr (N + Offset < total_size) { \
-				constexpr auto var_idx = unflatten(N, var_sizes); \
-				return static_cast<Fn&&>(fn)( static_cast<Vs&&>(vs).template unsafe_get<var_idx.data[Vx]>()... ); \
-				break; \
-			} else DeclareUnreachable;
-	
-		#define SEQSIZE 200
-	
-		switch( flat_idx ) {
-		
-			default : 
-				if constexpr (total_size - Offset > SEQSIZE)
-					return multi_visit_tail<Offset + SEQSIZE, Rtype>(seq, static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
-				else
-					DeclareUnreachable;
-		
-			INJECTSEQ(SEQSIZE)
-		}
-	
-		#undef X
-		#undef SEQSIZE
-	}
-	
-#endif
-
-#if 0
-
-template <unsigned Offset, class Rtype, class Fn, class A, class B, class... Vs, std::size_t... Vx>
-constexpr Rtype multi_visit_tail(std::integer_sequence<std::size_t, Vx...> seq, Fn&& fn, Vs&&... vs){
-
-	constexpr unsigned var_sizes[sizeof...(Vs)] = {std::decay_t<Vs>::size...};
-	constexpr auto total_size = (std::decay_t<Vs>::size * ...);
-
-	#define X(N) case (N + Offset) :  \
-		if constexpr (N + Offset < total_size) { \
-			return static_cast<Fn&&>(fn)( static_cast<Vs&&>(vs).template unsafe_get<var_idx.data[Vx]>()... ); \
-			break; \
-		} else DeclareUnreachable;
-	
-	#define SEQSIZE 200
-	
-	switch( flat_idx ) {
-	
-		default : 
-			if constexpr (total_size - Offset > SEQSIZE)
-				return multi_visit_tail<Offset + SEQSIZE, Rtype>(seq, static_cast<Fn&&>(fn), static_cast<Vs&&>(vs)...);
-			else
-				DeclareUnreachable;
-	
-		INJECTSEQ(SEQSIZE)
-	}
-
-	#undef X
-	#undef SEQSIZE
+	if constexpr (sizeof...(tail) == 0)
+		return FWD(vis)();
+	else if constexpr (sizeof...(tail) == 1)
+		return vimpl::visit( FWD(vis), FWD(tail)... );
+	else
+		return vimpl::multi_visit(FWD(vis), FWD(tail)...);
 }
-#endif
 
 #undef DEC
 #undef SEQ30

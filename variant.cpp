@@ -12,19 +12,19 @@
 
 //#define SWL_CPP_VARIANT_USE_STD_HASH
 #include "variant.hpp" 
-
+//#include <variant>
 int main(){
 	
-	using namespace swl;
+	using namespace std;
 	
 	
-	variant<PACK1> a, b, c, d;
+	swl::variant<PACK1> a, b, c, d;
 	
 	a.emplace<4>(2);
 	
 	int x = 0;
 	
-	swl::visit( [&x] (auto... args) { }, a );
+	swl::visit( [&x] (auto... args) { }, a, b, c );
 	
 	
 } 
