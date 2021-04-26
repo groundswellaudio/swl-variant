@@ -108,9 +108,6 @@ int main(int argc, char** argv){
 		}
 		else
 			((summary += "Test ") += path) += " : failed. \n";
-			
-		if (num_test > 2)
-			break;
 	}
 	
 	std::cout << "Test summary : \n" << summary << "\n";

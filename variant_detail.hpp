@@ -1,11 +1,5 @@
 #ifdef SWL_CPP_LIBRARY_VARIANT_HPP
 
-
-template <class T>
-struct array_wrapper { 
-	T data;
-};
-
 template <int N>
 constexpr int find_first_true(bool (&&arr)[N]){
 	for (int k = 0; k < N; ++k)
@@ -18,9 +12,6 @@ template <class T, class... Ts>
 inline constexpr bool appears_exactly_once = (static_cast<unsigned short>(std::is_same_v<T, Ts>) + ...) == 1;
 
 // ============= type pack element 
-
-template <class... Ts>
-static constexpr unsigned true_ = sizeof...(Ts) < (1000000000000000);
 
 template <unsigned char = 1>
 struct find_type_i;
@@ -38,7 +29,7 @@ struct find_type_i<0> {
 };
 
 template <std::size_t K, class... Ts>
-using type_pack_element = typename find_type_i<(K != 0 and true_<Ts...>)>::template f<K, Ts...>;
+using type_pack_element = typename find_type_i<(K != 0)>::template f<K, Ts...>;
 
 // ============= overload match detector. to be used for variant generic assignment
 
@@ -62,24 +53,20 @@ struct make_overload<std::integer_sequence<std::size_t, Idx...>, Args...>
 	using overload_frag<Idx, Args>::operator()...;
 };
 
-#define find_best_overload(T, Pack) make_overload<std::make_index_sequence<sizeof...(Pack)>, Pack ...>{}( std::declval<T>(), std::declval<T>() ) 
-
 template <class T, class... Ts>
-using best_overload_match = typename decltype( find_best_overload(T, Ts) )::type;
+using best_overload_match = typename decltype( 
+	make_overload<std::make_index_sequence<sizeof...(Ts)>, Ts...>{}
+	( std::declval<T>(), std::declval<T>() )
+)::type;
 	
 template <class T, class... Ts>
 concept has_non_ambiguous_match = 
 	requires { typename best_overload_match<T, Ts...>; };
 
-#undef find_best_overload
-
 // ================================== rel ops
 
 template <class From, class To>
 concept convertible = std::is_convertible_v<From, To>;
-
-template <class T, class... Args>
-concept bracket_constructible = requires (Args... args) { T{args...}; };
 
 template <class T>
 concept has_eq_comp = requires (T a, T b) { 
@@ -108,7 +95,7 @@ template <class A>
 struct emplace_into {
 	template <class T>
 	constexpr void operator()(T&& elem, auto index) const {
-		a.template emplace<index>(decltype(elem)(elem));
+		a.template emplace<index>(static_cast<T&&>(elem));
 	}
 	A& a;
 };

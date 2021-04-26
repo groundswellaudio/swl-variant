@@ -23,6 +23,6 @@ int main(){
 	
 	int x = 0;
 	
-	swl::visit( [] (auto... args) {}, a, b, c, d);
+	swl::visit( [] (auto... args) {}, a );
 	
 } 

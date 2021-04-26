@@ -6,6 +6,7 @@
 #include <utility>
 #include <new>
 #include <limits>
+#include <initializer_list>
 
 // a user-provided header for tweaks
 // possible macros defined : 
@@ -102,7 +103,7 @@ class variant : private vimpl::variant_tag {
 	static constexpr bool has_copy_ctor        = std::is_copy_constructible_v<storage_t>;
 	static constexpr bool trivial_copy_ctor    = is_trivial || std::is_trivially_copy_constructible_v<storage_t>;
 	static constexpr bool has_copy_assign      = std::is_copy_constructible_v<storage_t>;
-	static constexpr bool trivial_copy_assign  = is_trivial || has_copy_assign && std::is_trivially_copy_assignable_v<storage_t>;
+	static constexpr bool trivial_copy_assign  = is_trivial || std::is_trivially_copy_assignable_v<storage_t>;
 	static constexpr bool has_move_ctor        = std::is_move_constructible_v<storage_t>;
 	static constexpr bool trivial_move_ctor    = is_trivial || std::is_trivially_move_constructible_v<storage_t>;
 	static constexpr bool has_move_assign      = std::is_move_assignable_v<storage_t>;
@@ -161,7 +162,6 @@ class variant : private vimpl::variant_tag {
 	}
 	
 	// generic constructor
-	// FIXME : do these constraints really match the standard? 
 	template <class T, class M = vimpl::best_overload_match<T&&, Ts...>, class D = std::decay_t<T>>
 	constexpr variant(T&& t)
 		noexcept ( std::is_nothrow_constructible_v<M, T&&> )
@@ -179,8 +179,27 @@ class variant : private vimpl::variant_tag {
 	// construct a given type
 	template <class T, class... Args>
 		requires (vimpl::appears_exactly_once<T, Ts...> && std::is_constructible_v<T, Args&&...>)
-	explicit constexpr variant(in_place_type_t<T> tag, Args&&... args)
+	explicit constexpr variant(in_place_type_t<T>, Args&&... args)
 	: variant{ in_place_index< index_of<T> >, static_cast<Args&&>(args)... }
+	{}
+	
+	// initializer-list constructors
+	template <std::size_t Index, class U, class... Args>
+		requires ( 
+			std::is_constructible_v< alternative<Index>, std::initializer_list<U>&, Args&&... >
+			&& (Index < size) 
+		)
+	explicit constexpr variant (in_place_index_t<Index> tag, std::initializer_list<U> list, Args&&... args)
+	: storage{ tag, list, FWD(args)... }
+	{}
+	
+	template <class T, class U, class... Args>
+		requires (
+			vimpl::appears_exactly_once<T, Ts...>
+			&& std::is_constructible_v< T, std::initializer_list<U>&, Args&&... >
+		)
+	explicit constexpr variant (in_place_type_t<T>, std::initializer_list<U> list, Args&&... args)
+	: storage{ in_place_index<index_of<T>>, list, FWD(args)... }
 	{}
 	
 	// ================================ destructors (20.7.3.3)
@@ -246,11 +265,10 @@ class variant : private vimpl::variant_tag {
 		noexcept( std::is_nothrow_assignable_v<vimpl::best_overload_match<T&&, Ts...>, T&&> 
 				  && std::is_nothrow_constructible_v<vimpl::best_overload_match<T&&, Ts...>, T&&> )
 	{
-		using namespace vimpl;
-		using related_type = best_overload_match<T&&, Ts...>;
+		using related_type = vimpl::best_overload_match<T&&, Ts...>;
 		constexpr auto new_index = index_of<related_type>;
 		
-		if (current == new_index)
+		if (this->current == new_index)
 			this->unsafe_get<new_index>() = FWD(t);
 		else {
 		
@@ -273,34 +291,29 @@ class variant : private vimpl::variant_tag {
 	
 	template <class T, class... Args>
 		requires std::is_constructible_v<T, Args&&...>
-	
-	#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
-		constexpr
-	#endif
-	T& emplace(Args&&... args){
+	constexpr T& emplace(Args&&... args){
 		static_assert( vimpl::appears_exactly_once<T, Ts...>,  
-			"Variant emplace : the type to be emplaced must appear exactly once." ); 
-		
-		constexpr auto Index = index_of<T>;
-		(void) emplace<Index>(static_cast<Args&&>(args)...);
-		return unsafe_get<Index>();
+			"swl::variant::emplace : the type to be emplaced must appear exactly once"
+			"in the list of types." ); 
+	
+		return this->emplace<index_of<T>>(static_cast<Args&&>(args)...);
 	}
 	
 	template <std::size_t Idx, class... Args>
 		requires (Idx < size and std::is_constructible_v<alternative<Idx>, Args&&...>  )
-	#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
-		constexpr
-	#endif
-	auto& emplace(Args&&... args){
-		using T = alternative<Idx>;
-		
-		reset();
-		
-		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
-			current = npos;
-		
-		emplace_no_dtor<Idx>( FWD(args)...);
-		return unsafe_get<Idx>();
+	constexpr auto& emplace(Args&&... args){
+		return this->emplace_impl<Idx>(FWD(args)...);
+	}
+	
+	// emplace with initializer-lists
+	template <std::size_t Idx, class U, class... Args>
+	constexpr auto& emplace(std::initializer_list<U> list, Args&&... args){
+		return this->emplace_impl<Idx>(list, FWD(args)...);
+	}
+	
+	template <class T, class U, class... Args>
+	constexpr T& emplace(std::initializer_list<U> list, Args&&... args){
+		return this->emplace<index_of<T>>( list, FWD(args)... );
 	}
 	
 	// ==================================== value status (20.7.3.6)
@@ -317,8 +330,7 @@ class variant : private vimpl::variant_tag {
 	
 	// =================================== swap (20.7.3.7)
 	
-	constexpr 
-	void swap(variant& o) 
+	constexpr void swap(variant& o) 
 		noexcept ( (std::is_nothrow_move_constructible_v<Ts> && ...) 
 				   && (vimpl::swap_trait::template nothrow<Ts> && ...) )
 		requires (has_move_ctor && (vimpl::swap_trait::template able<Ts> && ...))
@@ -418,15 +430,28 @@ class variant : private vimpl::variant_tag {
 	
 	private : 
 	
+	template <unsigned Idx, class... Args>
+	constexpr auto& emplace_impl(Args&&... args){
+		using T = alternative<Idx>;
+		
+		this->reset();
+		
+		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
+			current = npos;
+		
+		this->emplace_no_dtor<Idx>( FWD(args)...);
+		return this->unsafe_get<Idx>();
+	}
+	
 	// can be used directly only when the variant is in a known empty state
 	template <unsigned Idx, class... Args>
 	constexpr void emplace_no_dtor(Args&&... args){
-		using T = alternative<Idx>;
 		
 		#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE 
 			auto* ptr = std::addressof( storage.impl.template get<Idx>() );
 			std::construct_at( ptr, FWD(args)... );
 		#else
+			using T = alternative<Idx>;
 			auto* ptr = vimpl::addressof( storage.impl.template get<Idx>() );
 			new ((void*)(ptr)) T ( FWD(args)... );
 		#endif
