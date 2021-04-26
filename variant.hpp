@@ -7,17 +7,25 @@
 #include <new>
 #include <limits>
 
+// a user-provided header for tweaks
+// possible macros defined : 
+// SWL_VARIANT_CONSTEXPR_EMPLACE
+#if __has_include("swl_variant_knobs.hpp")
+	#include "swl_variant_knobs.hpp"
+#endif
 
-#define FWD(x) static_cast<decltype(x)&&>(x)
-#define MOV(x) static_cast< std::remove_reference_t<decltype(x)>&& >(x)
+#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
+	#include <memory>
+#endif
 
-// a macro-based knob for this is ok, this isn't going to 
-// cause problems if the value changes for differing includes
-// anyway, but what do i do about constexpr emplace and std::construct_at?
-// use a __has_include trick? 
+// a plain macro-based knob for this is ok, this isn't going to 
+// cause problems if the value changes for differing includes anyway
 #ifdef SWL_VARIANT_USE_STD_HASH
 	#include <functional>
 #endif
+
+#define FWD(x) static_cast<decltype(x)&&>(x)
+#define MOV(x) static_cast< std::remove_reference_t<decltype(x)>&& >(x)
 
 #ifdef SWL_VARIANT_DEBUG
 	#include <iostream>
@@ -30,7 +38,7 @@
 namespace swl {
 
 class bad_variant_access : std::exception {
-	const char* message = " "; // llvm test requires a well formed what() on default init
+	const char* message = ""; // llvm test requires a well formed what() on default init
 	public : 
 	bad_variant_access(const char* str) noexcept : message{str} {}
 	bad_variant_access() noexcept = default;
@@ -221,12 +229,12 @@ class variant : private vimpl::variant_tag {
 		noexcept ((std::is_nothrow_move_constructible_v<Ts> && ...) && (std::is_nothrow_move_assignable_v<Ts> && ...))
 		requires (has_move_assign && has_move_ctor and not(trivial_move_assign and trivial_move_ctor and trivial_dtor))
 	{
-		assign_from(static_cast<variant&&>(o), [this] (auto&& elem, auto index_cst) 
+		assign_from(FWD(o), [this] (auto&& elem, auto index_cst) 
 		{
 			if (index() == index_cst)
-				this->unsafe_get<index_cst>() = std::move(elem);
+				this->unsafe_get<index_cst>() = MOV(elem);
 			else 
-				this->emplace<index_cst>(std::move(elem));
+				this->emplace<index_cst>( MOV(elem) );
 		});
 		return *this;
 	}
@@ -243,7 +251,7 @@ class variant : private vimpl::variant_tag {
 		constexpr auto new_index = find_type<related_type, Ts...>();
 		
 		if (current == new_index)
-			unsafe_get<new_index>() = FWD(t);
+			this->unsafe_get<new_index>() = FWD(t);
 		else {
 		
 			constexpr bool do_simple_emplace = 
@@ -349,7 +357,7 @@ class variant : private vimpl::variant_tag {
 				
 					auto tmp { MOV(this_elem) };
 					
-					// destructing the elements right here save us another level of indirection
+					// destruct the element
 					vimpl::destruct<alternative<this_index>>(this_elem);
 					
 					if constexpr (not std::is_nothrow_move_constructible_v<alternative<idx_t::value>> )
@@ -408,7 +416,15 @@ class variant : private vimpl::variant_tag {
 	template <unsigned Idx, class... Args>
 	constexpr void emplace_no_dtor(Args&&... args){
 		using T = alternative<Idx>;
-		new( (void*)(&storage.impl.template get<Idx>()) ) T (static_cast<Args&&>(args)...);	
+		
+		#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE 
+			auto* ptr = std::addressof( storage.impl.template get<Idx>() );
+			std::construct_at( ptr, FWD(args)... );
+		#else
+			auto* ptr = vimpl::addressof( storage.impl.template get<Idx>() );
+			new ((void*)(ptr)) T ( FWD(args)... );
+		#endif
+		
 		current = static_cast<index_type>(Idx);
 	}
 	
@@ -521,22 +537,24 @@ constexpr const T&& get (const variant<Ts...>&& v){
 
 // ===== get_if by index
 
-// FIXME : put the return type in the signature here
-// FIXME : use addressof here
 template <std::size_t Idx, class... Ts>
 constexpr const auto* get_if(const variant<Ts...>* v) noexcept {
-	using rtype = typename variant<Ts...>::template alternative<Idx>;
+	using rtype = typename variant<Ts...>::template alternative<Idx>*;
 	if (v == nullptr || v->index() != Idx) 
 		return rtype{nullptr};
-	else return &v->template unsafe_get<Idx>();
+	#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
+		else return std::addressof( v->template unsafe_get<Idx>() );
+	#else
+		else return vimpl::addressof( v->template unsafe_get<Idx>() );
+	#endif
 }
 
 template <std::size_t Idx, class... Ts>
 constexpr auto* get_if(variant<Ts...>* v) noexcept {
 	using rtype = typename variant<Ts...>::template alternative<Idx>;
-	if (v == nullptr || v->index() != Idx) 
-		return rtype{nullptr};
-	else return &v->template unsafe_get<Idx>();
+	return const_cast<rtype*>(
+		swl::get_if<Idx>( static_cast<const variant<Ts...>*>(v) )
+	);
 }
 
 // ====== get_if by type 
@@ -684,12 +702,16 @@ void swap(variant<Ts...>& a, variant<Ts...>& b)
 		};
 	}
 
-#undef SWL_VARIANT_USE_STD_HASH
+	#undef SWL_VARIANT_USE_STD_HASH
 
 #endif // std-hash
 
 #undef DebugAssert
 #undef FWD
 #undef MOV
+
+#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
+	#undef SWL_VARIANT_CONSTEXPR_EMPLACE
+#endif
 
 #endif // eof

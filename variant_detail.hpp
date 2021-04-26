@@ -327,13 +327,17 @@ template <class T>
 using uncvref_t = std::remove_cvref_t<T>;
 
 #ifdef SWL_CPP_VARIANT_USE_STD_HASH
-  
+	template <class T>
+	inline constexpr bool has_std_hash = requires (T t) { 
+		std::size_t( ::std::hash< uncvref_t<T> >{}(t) ); 
+	};
+#endif
+
 template <class T>
-inline constexpr bool has_std_hash = requires (T t) { 
-	std::size_t( ::std::hash< uncvref_t<T> >{}(t) ); 
-};
+inline T* addressof( T& obj ) noexcept {
+	return reinterpret_cast<T*>
+	(&const_cast<char&>(reinterpret_cast<const volatile char&>(obj)));
+}
 
-#endif
-
-#endif
+#endif // eof
 					  

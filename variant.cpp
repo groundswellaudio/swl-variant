@@ -24,7 +24,13 @@ int main(){
 	
 	int x = 0;
 	
-	swl::visit( [&x] (auto... args) { }, a, b, c );
+	auto* p = get_if<4>(&a);
 	
+	const auto cp = a;
+	
+	auto* ptr = get_if<4>(&cp);
+	
+	
+	*p = 5;
 	
 } 

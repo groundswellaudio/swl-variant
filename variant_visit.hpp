@@ -13,32 +13,14 @@ using rtype_index_visit = decltype( ( std::declval<Fn>()( std::declval<Var>().te
 								 	  std::integral_constant<std::size_t, 0>{} ) ) 
 								  );
 
-template <unsigned... Sizes>
-constexpr unsigned flatten_indices(const auto... args){	
-	unsigned res = 0;
-	([&] () { res *= Sizes; res += args; }(), ...);
-	return res;
-}
-
-template <std::size_t N>
-constexpr auto unflatten(unsigned Idx, const unsigned(&sizes)[N]){
-	array_wrapper<unsigned[N]> res;
-	auto& data = res.data;
-	for (unsigned k = 1; k < N; ++k){
-		const auto prev = Idx;
-		Idx /= sizes[N - k];
-		data[N - k] = prev - Idx * sizes[k];
-	}
-	data[0] = Idx;
-	return res;
-}
-
 inline namespace v1 {
 
 #if defined(__GNUC__) || defined( __clang__ ) || defined( __INTEL_COMPILER )
-	#define DeclareUnreachable __builtin_unreachable()
+	#define DeclareUnreachable() __builtin_unreachable()
 #elif defined (_MSC_VER)
-	#define DeclareUnreachable __assume(false)
+	#define DeclareUnreachable() __assume(false)
+#else
+	#error "Compiler not supported, please file an issue."
 #endif
 
 #define DEC(N) X((N)) X((N) + 1) X((N) + 2) X((N) + 3) X((N) + 4) X((N) + 5) X((N) + 6) X((N) + 7) X((N) + 8) X((N) + 9)
@@ -64,7 +46,7 @@ constexpr Rtype single_visit_tail(Fn&& fn, V&& v){
 		if constexpr (N + Offset < var_size) { \
 			return static_cast<Fn&&>(fn)( static_cast<V&&>(v).template unsafe_get<N+Offset>() ); \
 			break; \
-		} else DeclareUnreachable;
+		} else DeclareUnreachable();
 
 	#define SEQSIZE 400
 	
@@ -74,9 +56,9 @@ constexpr Rtype single_visit_tail(Fn&& fn, V&& v){
 		
 		default : 
 			if constexpr (var_size - Offset > SEQSIZE)
-				return single_visit_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
+				return vimpl::single_visit_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
 			else 
-				DeclareUnreachable;
+				DeclareUnreachable();
 	}
 	
 	#undef X
@@ -92,7 +74,7 @@ constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
 		if constexpr (N + Offset < var_size) { \
 			return static_cast<Fn&&>(fn)( static_cast<V&&>(v).template unsafe_get<N+Offset>(), std::integral_constant<unsigned, N+Offset>{} ); \
 			break; \
-		} else DeclareUnreachable;
+		} else DeclareUnreachable();
 	
 	#define SEQSIZE 400
 	
@@ -102,9 +84,9 @@ constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
 		
 		default : 
 			if constexpr (var_size - Offset > SEQSIZE)
-				return single_visit_w_index_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
+				return vimpl::single_visit_w_index_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
 			else 
-				DeclareUnreachable;
+				DeclareUnreachable();
 	}
 	
 	#undef X
@@ -113,12 +95,12 @@ constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
 
 template <class Fn, class V>
 constexpr decltype(auto) visit(Fn&& fn, V&& v){
-	return single_visit_tail<0, rtype_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
+	return vimpl::single_visit_tail<0, rtype_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
 }
 
 template <class Fn, class V>
 constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v){
-	return single_visit_w_index_tail<0, rtype_index_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
+	return vimpl::single_visit_w_index_tail<0, rtype_index_visit<Fn&&, V&&>>(FWD(fn), FWD(v));
 }
 
 template <class Fn, class Head, class... Tail>
@@ -126,7 +108,7 @@ constexpr decltype(auto) multi_visit(Fn&& fn, Head&& head, Tail&&... tail){
 	
 	// visit them one by one, starting with the last
 	auto vis = [&fn, &head] (auto&&... args) -> decltype(auto) {
-		return visit( [&fn, &args...] (auto&& elem) -> decltype(auto) {
+		return vimpl::visit( [&fn, &args...] (auto&& elem) -> decltype(auto) {
 			return FWD(fn)( FWD(elem), FWD(args)... );
 		}, FWD(head) );
 	};
