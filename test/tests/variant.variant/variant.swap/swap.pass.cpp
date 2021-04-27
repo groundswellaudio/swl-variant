@@ -200,7 +200,6 @@ void test_swap_valueless_by_exception() {
       SWL_ASSERT(v2.valueless_by_exception());
       SWL_ASSERT(MakeEmptyT::alive == 0);
     }
-    puts("aye");
     { // non-member swap
       swap(v1, v2);
       SWL_ASSERT(v1.valueless_by_exception());
@@ -208,7 +207,6 @@ void test_swap_valueless_by_exception() {
       SWL_ASSERT(MakeEmptyT::alive == 0);
     }
   }
-  puts("exc-2");
   { // only one empty
     V v1(42);
     V v2;

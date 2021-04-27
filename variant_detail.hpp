@@ -84,14 +84,6 @@ concept has_less_or_eq_comp = requires (T a, T b) {
 };
 
 template <class A>
-struct eq_comp {
-	constexpr bool operator()(const auto& elem, auto index) const noexcept { 
-		return (a.template get<index>() == elem); 
-	}
-	const A& a;
-};
-
-template <class A>
 struct emplace_into {
 	template <class T>
 	constexpr void operator()(T&& elem, auto index) const {

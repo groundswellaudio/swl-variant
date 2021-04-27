@@ -290,12 +290,8 @@ class variant : private vimpl::variant_tag {
 	// ================================== modifiers (20.7.3.5)
 	
 	template <class T, class... Args>
-		requires std::is_constructible_v<T, Args&&...>
+		requires (std::is_constructible_v<T, Args&&...> && vimpl::appears_exactly_once<T, Ts...>)
 	constexpr T& emplace(Args&&... args){
-		static_assert( vimpl::appears_exactly_once<T, Ts...>,  
-			"swl::variant::emplace : the type to be emplaced must appear exactly once"
-			"in the list of types." ); 
-	
 		return this->emplace<index_of<T>>(static_cast<Args&&>(args)...);
 	}
 	
@@ -307,11 +303,15 @@ class variant : private vimpl::variant_tag {
 	
 	// emplace with initializer-lists
 	template <std::size_t Idx, class U, class... Args>
+		requires ( Idx < size 
+			&& std::is_constructible_v<alternative<Idx>, std::initializer_list<U>&, Args&&...> )
 	constexpr auto& emplace(std::initializer_list<U> list, Args&&... args){
 		return this->emplace_impl<Idx>(list, FWD(args)...);
 	}
 	
 	template <class T, class U, class... Args>
+		requires ( std::is_constructible_v<T, std::initializer_list<U>&, Args&&...>
+				   && vimpl::appears_exactly_once<T, Ts...> )
 	constexpr T& emplace(std::initializer_list<U> list, Args&&... args){
 		return this->emplace<index_of<T>>( list, FWD(args)... );
 	}
@@ -345,7 +345,8 @@ class variant : private vimpl::variant_tag {
 				full.current = npos;
 			};
 			
-			switch( this->index() == npos + (o.index() == npos) * 2 ){	
+			switch( static_cast<int>(this->index() == npos) + static_cast<int>(o.index() == npos) * 2 )
+			{	
 				case 0 : 
 					break;
 				case 1 : 
@@ -620,7 +621,9 @@ constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		return false;
 	if constexpr (variant<Ts...>::can_be_valueless)
 		if (v1.valueless_by_exception()) return true;
-	return vimpl::visit_with_index( v2, vimpl::eq_comp<const variant<Ts...>&>{v1} );
+	return vimpl::visit_with_index( v2, [&v1] (auto& elem, auto index) -> bool {
+		return (v1.template unsafe_get<index>() == elem);
+	});
 }
 
 template <class... Ts>
