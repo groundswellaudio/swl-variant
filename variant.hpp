@@ -710,6 +710,29 @@ constexpr void swap(variant<Ts...>& a, variant<Ts...>& b)
 	a.swap(b);
 }
 
+// ===================================== helper classes (20.7.4)
+
+template <class T>
+	requires is_variant<T>
+inline constexpr std::size_t variant_size_v = std::decay_t<T>::size;
+
+// not sure why anyone would need this, i'm adding it anyway
+template <class T>
+	requires is_variant<T>
+struct variant_size {
+	static constexpr auto value = variant_size_v<T>;
+};
+
+template <std::size_t Idx, class T>
+	requires is_variant<T>
+using variant_alternative_t = typename std::decay_t<T>::template alternative<Idx>;
+
+template <std::size_t Idx, class T>
+	requires is_variant<T>
+struct variant_alternative {
+	using type = variant_alternative_t<Idx, T>;
+};
+
 // ===================================== extensions (unsafe_get)
 
 template <std::size_t Idx, class Var>

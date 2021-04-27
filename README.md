@@ -34,7 +34,10 @@ To activate hashing, use the following code before #include'ing :
 ## Measurements 
 
 The measurements are of the form (compile time, executable file size). 
+
 All of these measurements were done without optimizations. 
+
+The compilers used were Clang 12 and GCC 10. 
 
 Single visitation : 
 | Variant size | swl (clang) | std (clang) | swl (gcc) | std (gcc) 
@@ -43,17 +46,17 @@ Single visitation :
 | 20 | 0.5s   | 1.4s  | 1.4s | 1.7s |
 | 40 | 0.7s   | 2.2s  | 1.8s | 3.2s |
 | 80 | 1s     | 5.2s  | 2.6s | 9.2s |
-| 160 | 1.7s  | 16.6s | 4.5s | 33.4s |
+| 160 | 1.7s  | 16.6s | 4.5s | 33.4s|
 | 320 | 3.15s | 63s   | 8.4s | 143s |
-| 640 | 6.5s  | 315s  | 20s  | ∞ |
+| 640 | 6.5s  | 315s  | 20s  | ∞    |
 
 Multi visitation of some variants of size 10 : 
 
 | Numbers of variants | swl (clang) | std (clang) | swl (gcc) | std (gcc) 
 |--|--|--|--|--|
-| 2 | 0.6s    | 2s       | 2.8s, 41 Ko   | 1.3s, 160 Ko  |
-| 3 | 2.3s    | 8s       | 3.8s, 123 Ko  | 9s, 1.5 Mo    |
-| 4 | 20s     | 80s       | 10.5s, 560 Ko | 95s, 17 Mo    |
+| 2 | 1.1s, 49 Ko   | 1.6s, 128 Ko   | 2.8s, 41 Ko    | 1.3s, 160 Ko  |
+| 3 | 2s, 142 Ko    | 8s, 1.1 Mo     | 3.8s, 123 Ko   | 9s, 1.5 Mo    |
+| 4 | 6.7s, 630 Ko  | 68s, 11 Mo     | 10.5s, 560 Ko  | 95s, 17 Mo    |
 
 ### Tested compilers
 * GCC 10
