@@ -10,18 +10,17 @@
 
 // a user-provided header for tweaks
 // possible macros defined : 
-// SWL_VARIANT_CONSTEXPR_EMPLACE
+// SWL_VARIANT_NO_CONSTEXPR_EMPLACE
+// SWL_VARIANT_NO_STD_HASH
 #if __has_include("swl_variant_knobs.hpp")
 	#include "swl_variant_knobs.hpp"
 #endif
 
-#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
+#ifndef SWL_VARIANT_NO_CONSTEXPR_EMPLACE
 	#include <memory>
 #endif
 
-// a plain macro-based knob for this is ok, this isn't going to 
-// cause problems if the value changes for differing includes anyway
-#ifdef SWL_VARIANT_USE_STD_HASH
+#ifndef SWL_VARIANT_NO_STD_HASH
 	#include <functional>
 #endif
 
@@ -468,13 +467,13 @@ class variant : private vimpl::variant_tag {
 	template <unsigned Idx, class... Args>
 	constexpr void emplace_no_dtor(Args&&... args){
 		
-		#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE 
-			auto* ptr = std::addressof( storage.impl.template get<Idx>() );
-			std::construct_at( ptr, FWD(args)... );
-		#else
+		auto* ptr = vimpl::addressof( storage.impl.template get<Idx>() );
+		
+		#ifdef SWL_VARIANT_NO_CONSTEXPR_EMPLACE
 			using T = alternative<Idx>;
-			auto* ptr = vimpl::addressof( storage.impl.template get<Idx>() );
 			new ((void*)(ptr)) T ( FWD(args)... );
+		#else
+			std::construct_at( ptr, FWD(args)... );
 		#endif
 		
 		current = static_cast<index_type>(Idx);
@@ -578,11 +577,8 @@ constexpr const auto* get_if(const variant<Ts...>* v) noexcept {
 	using rtype = typename variant<Ts...>::template alternative<Idx>*;
 	if (v == nullptr || v->index() != Idx) 
 		return rtype{nullptr};
-	#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
-		else return std::addressof( v->template unsafe_get<Idx>() );
-	#else
-		else return vimpl::addressof( v->template unsafe_get<Idx>() );
-	#endif
+	else 
+		return vimpl::addressof( v->template unsafe_get<Idx>() );
 }
 
 template <std::size_t Idx, class... Ts>
@@ -755,7 +751,7 @@ constexpr auto&& unsafe_get(Var&& var) noexcept {
 } // SWL
 
 // ====================================== hash support (20.7.12)
-#ifdef SWL_VARIANT_USE_STD_HASH
+#ifndef SWL_VARIANT_NO_STD_HASH
 
 	namespace std {
 		template <class... Ts>
@@ -777,17 +773,16 @@ constexpr auto&& unsafe_get(Var&& var) noexcept {
 			constexpr std::size_t operator()(swl::monostate) const noexcept { return -1; }
 		};
 	}
-
-	#undef SWL_VARIANT_USE_STD_HASH
-
+#else
+	#undef SWL_VARIANT_NO_STD_HASH
 #endif // std-hash
 
 #undef DebugAssert
 #undef FWD
 #undef MOV
 
-#ifdef SWL_VARIANT_CONSTEXPR_EMPLACE
-	#undef SWL_VARIANT_CONSTEXPR_EMPLACE
+#ifdef SWL_VARIANT_NO_CONSTEXPR_EMPLACE
+	#undef SWL_VARIANT_NO_CONSTEXPR_EMPLACE
 #endif
 
 #endif // eof

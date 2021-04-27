@@ -20,16 +20,19 @@ For example :
 
 ## Implementation divergence
 
-* Specialization of std::hash is opt-in : specializing std::hash requires including \<functional\>, which is enormous
-
 * `index()` doesn't return a `std::size_t`, but an integer whose size depends on the numbers of type inside the variant. Basically either `unsigned char` or `unsigned short`. 
 
 * Clang implementation (but not GCC) forbids any kind of conversion to bool, not swl::variant
 
-* Extension : if you like to live dangerously, `swl::unsafe_get` behave just like get, but without any errors checking. 
+## Extensions and customization 
 
-To activate hashing, use the following code before #include'ing : 
-`#define SWL_VARIANT_USE_STD_HASH`
+* If you like to live dangerously, `swl::unsafe_get` behave just like get, but without any errors checking. 
+
+* Two macro based knobs are available : 
+	- SWL_VARIANT_NO_STD_HASH : this disable the `std::hash` specializations and the #include of \<functional\>, which is big
+	- SWL_VARIANT_NO_CONSTEXPR_EMPLACE : this disable `constexpr` for emplace, and the #include of \<memory\>, which is even bigger. Note that this one is an ODR footgun : don't use it if you can't guarantee that it's enabled everywhere in your binaries. 
+	To use these macros, define them in a file named "swl_variant_knobs.hpp", and put it either in the same directory as `variant.hpp` or at the root of a header search path. 
+	Both of these are provided to reduce compile times, whether or not this matter depends on your compiler : on my version of Clang, activating both of these macros result in a mere -0.5s, on GCC however, this reduce compile times by more than 4s. 
 
 ## Measurements 
 

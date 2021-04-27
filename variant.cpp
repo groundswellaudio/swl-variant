@@ -11,17 +11,18 @@
 //#include <iostream>
 
 //#define SWL_CPP_VARIANT_USE_STD_HASH
-//#include "variant.hpp" 
-#include <variant>
+#include "variant.hpp" 
+//#include <variant>
 int main(){
 	
-	using namespace std;
-	
-	std::variant<PACK640> a;
+	swl::variant<PACK20> a;
 	
 	//a.emplace<1>(2);
 	
 	int x = 0;
 	
-	std::visit( [] (auto... args) {}, a );
-} 
+	swl::visit( [] (auto... args) {}, a );
+	
+	auto z = std::hash<decltype(a)>{}(a);
+	
+}

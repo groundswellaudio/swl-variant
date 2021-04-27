@@ -292,20 +292,27 @@ namespace swap_trait {
 	inline constexpr bool nothrow = noexcept( swap(std::declval<A&>(), std::declval<A&>()) );
 }
 
-template <class T>
-using uncvref_t = std::remove_cvref_t<T>;
-
-#ifdef SWL_VARIANT_USE_STD_HASH
+#ifndef SWL_VARIANT_NO_STD_HASH
 	template <class T>
 	inline constexpr bool has_std_hash = requires (T t) { 
-		std::size_t( ::std::hash< uncvref_t<T> >{}(t) ); 
+		std::size_t( ::std::hash< std::remove_cvref_t<T> >{}(t) ); 
 	};
 #endif
 
 template <class T>
 inline constexpr T* addressof( T& obj ) noexcept {
-	return reinterpret_cast<T*>
-	(&const_cast<char&>(reinterpret_cast<const volatile char&>(obj)));
+	#if defined(__GNUC__) || defined( __clang__ )
+		return __builtin_addressof(obj);
+	#elif defined (SWL_VARIANT_NO_CONSTEXPR_EMPLACE)
+		// if & is overloaded, use the ugly version
+		if constexpr ( requires { obj.operator&(); } )
+			return reinterpret_cast<T*>
+			(&const_cast<char&>(reinterpret_cast<const volatile char&>(obj)));
+		else
+			return &obj;
+	#else
+		return std::address_of(obj);
+	#endif
 }
 
 #endif // eof
