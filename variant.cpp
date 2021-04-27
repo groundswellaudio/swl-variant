@@ -1,12 +1,12 @@
 
 #define PACK int, float, char, bool, double
-#define PACK1 PACK, PACK 
-#define PACK2 PACK1, PACK1
-#define PACK3 PACK2, PACK2 
-#define PACK4 PACK3, PACK3  
-#define PACK5 PACK4, PACK4
-#define PACK6 PACK5, PACK5
-#define PACK7 PACK6, PACK6
+#define PACK10 PACK, PACK 
+#define PACK20 PACK10, PACK10
+#define PACK40 PACK20, PACK20 
+#define PACK80 PACK40, PACK40
+#define PACK160 PACK80, PACK80
+#define PACK320 PACK160, PACK160
+#define PACK640 PACK320, PACK320
 
 //#include <iostream>
 
@@ -17,12 +17,11 @@ int main(){
 	
 	using namespace std;
 	
-	swl::variant<PACK1> a, b, c, d;
+	swl::variant<PACK640> a;
 	
 	//a.emplace<1>(2);
 	
 	int x = 0;
 	
-	swl::visit( [] (auto... args) {}, a, b, c, d );
-	
+	swl::visit( [] (auto... args) {}, a );
 } 

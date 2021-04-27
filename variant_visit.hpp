@@ -35,10 +35,10 @@ inline namespace v1 {
 template <unsigned Offset, class Rtype, class Fn, class V>
 constexpr Rtype single_visit_tail(Fn&& fn, V&& v){
 
-	constexpr auto var_size = std::decay_t<V>::size - Offset;
+	constexpr auto RemainingIndex = std::decay_t<V>::size - Offset;
 	
 	#define X(N) case (N + Offset) : \
-		if constexpr (N + Offset < var_size) { \
+		if constexpr (N < RemainingIndex) { \
 			return static_cast<Fn&&>(fn)( static_cast<V&&>(v).template unsafe_get<N+Offset>() ); \
 			break; \
 		} else DeclareUnreachable();
@@ -50,7 +50,7 @@ constexpr Rtype single_visit_tail(Fn&& fn, V&& v){
 		INJECTSEQ(SEQSIZE)
 		
 		default : 
-			if constexpr (var_size - Offset > SEQSIZE)
+			if constexpr (SEQSIZE < RemainingIndex)
 				return vimpl::single_visit_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
 			else 
 				DeclareUnreachable();
@@ -63,10 +63,10 @@ constexpr Rtype single_visit_tail(Fn&& fn, V&& v){
 template <unsigned Offset, class Rtype, class Fn, class V>
 constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
 
-	constexpr auto var_size = std::decay_t<V>::size;
+	constexpr auto RemainingIndex = std::decay_t<V>::size - Offset;
 	
 	#define X(N) case (N + Offset) : \
-		if constexpr (N + Offset < var_size) { \
+		if constexpr (N < RemainingIndex) { \
 			return static_cast<Fn&&>(fn)( static_cast<V&&>(v).template unsafe_get<N+Offset>(), std::integral_constant<unsigned, N+Offset>{} ); \
 			break; \
 		} else DeclareUnreachable();
@@ -78,7 +78,7 @@ constexpr Rtype single_visit_w_index_tail(Fn&& fn, V&& v){
 		INJECTSEQ(SEQSIZE)
 		
 		default : 
-			if constexpr (var_size - Offset > SEQSIZE)
+			if constexpr (SEQSIZE < RemainingIndex)
 				return vimpl::single_visit_w_index_tail<Offset + SEQSIZE, Rtype>(static_cast<Fn&&>(fn), static_cast<V&&>(v));
 			else 
 				DeclareUnreachable();

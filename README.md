@@ -42,13 +42,12 @@ The compilers used were Clang 12 and GCC 10.
 Single visitation : 
 | Variant size | swl (clang) | std (clang) | swl (gcc) | std (gcc) 
 |--|--|--|--|--|
-| 10 | 0.4s   |  1.4s  | 1s  | 1.4s |
-| 20 | 0.5s   | 1.4s  | 1.4s | 1.7s |
-| 40 | 0.7s   | 2.2s  | 1.8s | 3.2s |
-| 80 | 1s     | 5.2s  | 2.6s | 9.2s |
-| 160 | 1.7s  | 16.6s | 4.5s | 33.4s|
-| 320 | 3.15s | 63s   | 8.4s | 143s |
-| 640 | 6.5s  | 315s  | 20s  | ∞    |
+| 20 | 1s, 50 Ko         | 1.4s  | 1.4s | 1.7s |
+| 40 | 1.2s, 120 Ko      | 2.2s  | 1.8s | 3.2s |
+| 80 | 1.4s, 300 Ko      | 5.2s  | 2.6s | 9.2s |
+| 160 | 1.8s, 700 Ko     | 16.6s | 4.5s | 33.4s|
+| 320 | 3s, 1.7 Mo       | 63s   | 8.4s | 143s |
+| 640 | 5s, 4 Mo         | 315s  | 20s  | ∞    |
 
 Multi visitation of some variants of size 10 : 
 

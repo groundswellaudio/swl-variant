@@ -85,13 +85,17 @@ class variant;
 
 // ill-formed variant, an empty specialization prevents some really bad errors messages on gcc
 template <class... Ts>
-	requires ( (std::is_array_v<Ts> || ...) || (std::is_reference_v<Ts> || ...) || (std::is_void_v<Ts> || ...)
-				|| sizeof...(Ts) == 0 )
+	requires ( 
+		(std::is_array_v<Ts> || ...) 
+		|| (std::is_reference_v<Ts> || ...) 
+		|| (std::is_void_v<Ts> || ...) 
+		|| sizeof...(Ts) == 0 
+	)
 class variant<Ts...> {
-	static_assert( not (std::is_array_v<Ts> || ...), "A variant cannot contain a raw array type, consider using std::array instead." );
 	static_assert( sizeof...(Ts) > 0, "A variant cannot be empty.");
 	static_assert( not (std::is_reference_v<Ts> || ...), "A variant cannot contain references, consider using reference wrappers instead." );
 	static_assert( not (std::is_void_v<Ts> || ...), "A variant cannot contains void." );
+	static_assert( not (std::is_array_v<Ts> || ...), "A variant cannot contain a raw array type, consider using std::array instead." );
 };
 
 template <class... Ts>
