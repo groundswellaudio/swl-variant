@@ -12,11 +12,15 @@ Because `std::variant` is implemented in both GCC and Clang libraries using a si
 
 ## Testing
 
-The tests come from the LLVM test suite. \
-To run them, compile `all_tests.cpp` as follow : \
-`clang++ -std=c++20 ./test/all_tests.cpp`
+The tests come from the LLVM test suite, and are compiled/run by `./tests/all_tests.cpp`.
 
-Then, run the resulting executable by passing it a string containing a prefix of the command necessary to compile a C++20 file with your compiler of choice, with the root directory and the ./test directory in the include paths, *and* specifying the output path for compilation of individual tests. 
+Compile `all_tests.cpp` as follow : \
+`clang++ -std=c++17 ./test/all_tests.cpp`
+
+To run the tests, pass the following arguments to the resulting binary : 
+* a string containing a prefix of the command necessary to compile a C++20 file with your compiler of choice... 
+* with the root directory and the ./test directory in the include paths... 
+* *and* specifying the output path for compilation of individual tests at the end of the command
 
 For example : 
 `./a.out clang++ -std=c++20 -I . -I .. -o ./tmp_test`
@@ -35,9 +39,11 @@ Some test files succeed by not compiling, so you will see some errors. \
 * If you like to live dangerously, `swl::unsafe_get` behave just like get, but without any errors checking. 
 
 * Two macro based knobs are available : 
-	- `SWL_VARIANT_NO_STD_HASH` : this disable the `std::hash` specializations and `#include <functional>`
-	- `SWL_VARIANT_NO_CONSTEXPR_EMPLACE` : this disable `constexpr` for emplace, and `#include <memory>`, which is even bigger. Note that this one is an ODR footgun : don't use it if you can't guarantee that it's enabled everywhere in your binaries. \
-	To use these macros, define them in a file named `swl_variant_knobs.hpp`, and put it either in the same directory as `variant.hpp` or at the root of a header search path. \
+	- `SWL_VARIANT_NO_STD_HASH` : this disable the `std::hash` specializations and avoid the `#include <functional>`, which is big
+	- `SWL_VARIANT_NO_CONSTEXPR_EMPLACE` : this disable `constexpr` for emplace, and avoid the `#include <memory>`, which is even bigger. Note that this one is an ODR footgun : don't use it if you can't guarantee that it's enabled everywhere in your binaries. 
+
+	To use these macros, define them in a file named `swl_variant_knobs.hpp`, and put it either in the same directory as `variant.hpp` or at the root of a header search path. 
+
 	Both of these are provided to reduce compile times, whether or not this matter depends on your compiler : on my version of Clang, activating both of these macros result in a mere -0.5s, on GCC however, this reduce compile times by more than 4s. 
 
 ## Measurements 
@@ -70,4 +76,4 @@ Multi visitation of some variants of size 10 :
 
 * GCC 10
 
-Note : Because Clang 12 support of C++20 is only partial, for now `swl::variant` can't be instantiated with types whose destructors aren't trivial on Clang 12. 
+Note : Clang 12 will not work (as in : it works only for trivially destructible types). 
