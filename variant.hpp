@@ -190,7 +190,7 @@ class variant : private vimpl::variant_tag {
 			&& (Index < size) 
 		)
 	explicit constexpr variant (in_place_index_t<Index> tag, std::initializer_list<U> list, Args&&... args)
-	: storage{ tag, list, FWD(args)... }
+	: storage{ tag, list, FWD(args)... }, current{Index}
 	{}
 	
 	template <class T, class U, class... Args>
@@ -199,7 +199,7 @@ class variant : private vimpl::variant_tag {
 			&& std::is_constructible_v< T, std::initializer_list<U>&, Args&&... >
 		)
 	explicit constexpr variant (in_place_type_t<T>, std::initializer_list<U> list, Args&&... args)
-	: storage{ in_place_index<index_of<T>>, list, FWD(args)... }
+	: storage{ in_place_index<index_of<T>>, list, FWD(args)... }, current{index_of<T>}
 	{}
 	
 	// ================================ destructors (20.7.3.3)
