@@ -221,7 +221,7 @@ class variant : private vimpl::variant_tag {
 	constexpr variant& operator=(const variant& rhs)
 		requires (has_copy_assign and not(trivial_copy_assign && trivial_copy_ctor))
 	{
-		vimpl::visit_with_index(rhs, [this] (const auto& elem, auto index_cst) {
+		this->assign_from(rhs, [this] (const auto& elem, auto index_cst) {
 			if (this->index() == index_cst)
 				this->unsafe_get<index_cst>() = elem;
 			else{
@@ -248,7 +248,7 @@ class variant : private vimpl::variant_tag {
 		noexcept ((std::is_nothrow_move_constructible_v<Ts> && ...) && (std::is_nothrow_move_assignable_v<Ts> && ...))
 		requires (has_move_assign && has_move_ctor and not(trivial_move_assign and trivial_move_ctor and trivial_dtor))
 	{
-		vimpl::visit_with_index( FWD(o), [this] (auto&& elem, auto index_cst) 
+		this->assign_from( FWD(o), [this] (auto&& elem, auto index_cst) 
 		{
 			if (this->index() == index_cst)
 				this->unsafe_get<index_cst>() = MOV(elem);
@@ -313,7 +313,7 @@ class variant : private vimpl::variant_tag {
 		requires ( std::is_constructible_v<T, std::initializer_list<U>&, Args&&...>
 				   && vimpl::appears_exactly_once<T, Ts...> )
 	constexpr T& emplace(std::initializer_list<U> list, Args&&... args){
-		return this->emplace<index_of<T>>( list, FWD(args)... );
+		return this->emplace_impl<index_of<T>>( list, FWD(args)... );
 	}
 	
 	// ==================================== value status (20.7.3.6)
@@ -430,6 +430,22 @@ class variant : private vimpl::variant_tag {
 	}
 	
 	private : 
+	
+	// assign from another variant
+	template <class Other, class Fn>
+	constexpr void assign_from(Other&& o, Fn&& fn){
+		if constexpr (can_be_valueless){
+			if (o.index() == npos){
+				if (current != npos){
+					reset_no_check();
+					current = npos;
+				}
+				return;
+			}
+		}
+		DebugAssert(not o.valueless_by_exception());
+		vimpl::visit_with_index( FWD(o), FWD(fn) );
+	}
 	
 	template <unsigned Idx, class... Args>
 	constexpr auto& emplace_impl(Args&&... args){
