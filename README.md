@@ -6,13 +6,13 @@ A minimal compile-time overhead, C++20 implementation of std::variant. Fully sta
 
 Because std::variant is implemented in both GCC and Clang libraries using a simple recursive union, accessing each members result in approximately N^2 functions template instantiations for a variant of size N. This implementation instead use a "binary-tree of unions", resulting in N.log2(N) instantiations, which results in drastically faster compile times (see measurements below). 
 
-## Run-time performance
+## Run-time performance and binary size
 
-`std::variant` visit method is usually implemented using a table of functions pointers. Unfortunately, compilers cannot (yet?) "see through" those, and the generated code tends to be much larger and slower than a switch-case equivalent [more on this here](https://mpark.github.io/programming/2019/01/22/variant-visitation-v2/). Similarly to [Michael Park's implementation](https://github.com/mpark/variant), this implementation use a big, recursive switch for visitation. 
+`std::variant` visit method is usually implemented using a table of functions pointers. Unfortunately, compilers cannot (yet?) "see through" those, and the generated code tends to be much larger and slower than a switch-case equivalent - [more on this here](https://mpark.github.io/programming/2019/01/22/variant-visitation-v2/). Similarly to [Michael Park's implementation](https://github.com/mpark/variant), this implementation use a big, recursive switch for visitation. 
 
 ## Testing
 
-The tests come from the LLVM libc++ repo. You don't need to use LLVM-lit, though : just compile ./test/all_tests.cpp as follow : 
+The tests come from the LLVM test suite repo. You don't need to use LLVM-lit, though : just compile ./test/all_tests.cpp as follow : 
 `clang++ -std=c++20 ./test/all_test.cpp`
 To run it, pass a string containing a prefix of the command necessary to compile a C++20 file, with the root directory and the ./test directory in the include paths. 
 For example : 
@@ -42,12 +42,12 @@ The compilers used were Clang 12 and GCC 10.
 Single visitation : 
 | Variant size | swl (clang) | std (clang) | swl (gcc) | std (gcc) 
 |--|--|--|--|--|
-| 20 | 1s, 50 Ko         | 1.4s  | 1.4s | 1.7s |
-| 40 | 1.2s, 120 Ko      | 2.2s  | 1.8s | 3.2s |
-| 80 | 1.4s, 300 Ko      | 5.2s  | 2.6s | 9.2s |
-| 160 | 1.8s, 700 Ko     | 16.6s | 4.5s | 33.4s|
-| 320 | 3s, 1.7 Mo       | 63s   | 8.4s | 143s |
-| 640 | 5s, 4 Mo         | 315s  | 20s  | ∞    |
+| 20  | 1s, 50 Ko        | 1.2s, 80 Ko   | 4.6s, 50 Ko  | 1s, 133 Ko   |
+| 40  | 1.2s, 120 Ko     | 2s, 260 Ko    | 4.8s, 120 Ko | 2s, 440 Ko   |
+| 80  | 1.4s, 300 Ko     | 4.6s, 1 Mo    | 5.3s, 290 Ko | 5.7s, 1.8 Mo |
+| 160 | 1.8s, 700 Ko     | 15s, 4.3 Mo   | 6s, 720 Ko   | 21s, 8.2 Mo  |
+| 320 | 3s, 1.7 Mo       | 54s, 22 Mo    | 8.4s, 1.8 Mo | 90s, 40 Mo   |
+| 640 | 5s, 4 Mo         | 250s, 130 Mo  | 17s, 4.4 Mo  | 415s, 250 Mo |
 
 Multi visitation of some variants of size 10 : 
 
