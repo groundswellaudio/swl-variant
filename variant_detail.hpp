@@ -110,7 +110,7 @@ using union_index_t = unsigned;
 #define TRAIT(trait) ( std::is_##trait##_v<A> && std::is_##trait##_v<B> )
 
 #define SFM(signature, trait) \
-	signature requires TRAIT(trivially_##trait) = default; \
+	signature = default; \
 	signature requires (TRAIT(trait) and not TRAIT(trivially_##trait)) {} 
 
 // given the two members of type A and B of an union X
