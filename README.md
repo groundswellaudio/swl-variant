@@ -4,7 +4,7 @@ A minimal compile-time overhead, C++20 implementation of std::variant. Fully sta
 
 ## Compile-time performance
 
-Because std::variant is implemented in both GCC and Clang libraries using a simple recursive union, accessing each members result in approximately N^2 functions template instantiations for a variant of size N. This implementation instead use a "binary-tree of unions", resulting in N.log2(N) instantiations, which results in drastically faster compile times (see measurements below). 
+Because `std::variant` is implemented in both GCC and Clang libraries using a simple recursive union, accessing each members result in approximately N^2 functions template instantiations for a variant of size N. This implementation instead use a "binary-tree of unions", resulting in N.log2(N) instantiations, which results in drastically faster compile times (see measurements below). 
 
 ## Run-time performance and binary size
 
@@ -12,11 +12,17 @@ Because std::variant is implemented in both GCC and Clang libraries using a simp
 
 ## Testing
 
-The tests come from the LLVM test suite repo. You don't need to use LLVM-lit, though : just compile ./test/all_tests.cpp as follow : 
-`clang++ -std=c++20 ./test/all_test.cpp`
-To run it, pass a string containing a prefix of the command necessary to compile a C++20 file, with the root directory and the ./test directory in the include paths. 
+The tests come from the LLVM test suite. \
+To run them, compile `all_tests.cpp` as follow : \
+`clang++ -std=c++20 ./test/all_tests.cpp`
+
+Then, run the resulting executable by passing it a string containing a prefix of the command necessary to compile a C++20 file with your compiler of choice, with the root directory and the ./test directory in the include paths, *and* specifying the output path for compilation of individual tests. 
+
 For example : 
-`./a.out clang++ -std=c++20 -I . -I ..`
+`./a.out clang++ -std=c++20 -I . -I .. -o ./tmp_test`
+
+Some test files succeed by not compiling, so you will see some errors. \
+(this is a bit spartan, it would be nice to have a cleaner way of running all the tests). 
 
 ## Implementation divergence
 
@@ -29,8 +35,8 @@ For example :
 * If you like to live dangerously, `swl::unsafe_get` behave just like get, but without any errors checking. 
 
 * Two macro based knobs are available : 
-	- `SWL_VARIANT_NO_STD_HASH` : this disable the `std::hash` specializations and `#include \<functional\>`
-	- `SWL_VARIANT_NO_CONSTEXPR_EMPLACE` : this disable `constexpr` for emplace, and `#include \<memory\>`, which is even bigger. Note that this one is an ODR footgun : don't use it if you can't guarantee that it's enabled everywhere in your binaries. \
+	- `SWL_VARIANT_NO_STD_HASH` : this disable the `std::hash` specializations and `#include <functional>`
+	- `SWL_VARIANT_NO_CONSTEXPR_EMPLACE` : this disable `constexpr` for emplace, and `#include <memory>`, which is even bigger. Note that this one is an ODR footgun : don't use it if you can't guarantee that it's enabled everywhere in your binaries. \
 	To use these macros, define them in a file named `swl_variant_knobs.hpp`, and put it either in the same directory as `variant.hpp` or at the root of a header search path. \
 	Both of these are provided to reduce compile times, whether or not this matter depends on your compiler : on my version of Clang, activating both of these macros result in a mere -0.5s, on GCC however, this reduce compile times by more than 4s. 
 

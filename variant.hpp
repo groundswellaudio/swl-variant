@@ -168,7 +168,7 @@ class variant : private vimpl::variant_tag {
 		requires trivial_copy_ctor
 	= default;
 	
-	// note : both the copy and move constructor cannot be meaningfully constexpr before std::construct_at (C++20)
+	// note : both the copy and move constructor cannot be meaningfully constexpr without std::construct_at
 	// copy constructor
 	constexpr variant(const variant& o)
 		requires (has_copy_ctor and not trivial_copy_ctor)
@@ -691,7 +691,9 @@ constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 }
 
 template <class... Ts>
-constexpr bool operator>(const variant<Ts...>& v1, const variant<Ts...>& v2){
+constexpr bool operator>(const variant<Ts...>& v1, const variant<Ts...>& v2)
+	requires requires { v2 < v1; }
+{
 	return v2 < v1;
 }
 
@@ -712,7 +714,9 @@ constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 }
 
 template <class... Ts>
-constexpr bool operator>=(const variant<Ts...>& v1, const variant<Ts...>& v2){
+constexpr bool operator>=(const variant<Ts...>& v1, const variant<Ts...>& v2)
+	requires requires { v2 <= v1; }
+{
 	return v2 <= v1;
 }
 
@@ -744,13 +748,26 @@ inline constexpr std::size_t variant_size_v = std::decay_t<T>::size;
 // not sure why anyone would need this, i'm adding it anyway
 template <class T>
 	requires is_variant<T>
-struct variant_size {
-	static constexpr auto value = variant_size_v<T>;
-};
+struct variant_size : std::integral_constant<std::size_t, variant_size_v<T>> {};
+
+namespace vimpl {
+	// ugh, we have to take care of volatile here
+	template <bool IsVolatile>
+	struct var_alt_impl {
+		template <std::size_t Idx, class T>
+		using type = std::remove_reference_t<decltype( std::declval<T>().template unsafe_get<Idx>() )>;
+	};
+	
+	template <>
+	struct var_alt_impl<true> {
+		template <std::size_t Idx, class T>
+		using type = volatile typename var_alt_impl<false>::template type<Idx, std::remove_volatile_t<T>>;
+	};
+}
 
 template <std::size_t Idx, class T>
-	requires is_variant<T>
-using variant_alternative_t = typename std::decay_t<T>::template alternative<Idx>;
+	requires (Idx < variant_size_v<T>)
+using variant_alternative_t = typename vimpl::var_alt_impl< std::is_volatile_v<T> >::template type<Idx, T>;
 
 template <std::size_t Idx, class T>
 	requires is_variant<T>
