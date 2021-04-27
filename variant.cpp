@@ -11,20 +11,18 @@
 //#include <iostream>
 
 //#define SWL_CPP_VARIANT_USE_STD_HASH
-#include "variant.hpp" 
-//#include <variant>
+//#include "variant.hpp" 
+#include <variant>
 int main(){
 	
 	using namespace std;
 	
-	static_assert( std::is_trivially_copyable_v<const int> );
-	
-	swl::variant<PACK1> a, b, c, d;
+	std::variant<PACK1> a, b, c, d;
 	
 	//a.emplace<1>(2);
 	
 	int x = 0;
 	
-	//swl::visit( [] (auto... args) {}, a );
+	std::visit( [] (auto... args) {}, a, b, c, d );
 	
 } 
