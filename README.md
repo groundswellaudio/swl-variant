@@ -16,6 +16,7 @@ The tests come from the LLVM test suite, and are compiled/run by `./tests/all_te
 
 Compile `all_tests.cpp` as follow : \
 `clang++ -std=c++17 ./test/all_tests.cpp`
+(or compile it as any .cpp) 
 
 To run the tests, pass the following arguments to the resulting binary : 
 * a string containing a prefix of the command necessary to compile a C++20 file with your compiler of choice... 
@@ -23,7 +24,7 @@ To run the tests, pass the following arguments to the resulting binary :
 * *and* specifying the output path for compilation of individual tests at the end of the command
 
 For example : 
-`./a.out clang++ -std=c++20 -I . -I .. -o ./tmp_test`
+`./a.out g++ -std=c++20 -I . -I .. -o ./tmp_test`
 
 Some test files succeed by not compiling, so you will see some errors. \
 (this is a bit spartan, it would be nice to have a cleaner way of running all the tests). 
