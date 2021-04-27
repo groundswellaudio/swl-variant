@@ -29,9 +29,9 @@ For example :
 * If you like to live dangerously, `swl::unsafe_get` behave just like get, but without any errors checking. 
 
 * Two macro based knobs are available : 
-	- SWL_VARIANT_NO_STD_HASH : this disable the `std::hash` specializations and the #include of \<functional\>, which is big
-	- SWL_VARIANT_NO_CONSTEXPR_EMPLACE : this disable `constexpr` for emplace, and the #include of \<memory\>, which is even bigger. Note that this one is an ODR footgun : don't use it if you can't guarantee that it's enabled everywhere in your binaries. 
-	To use these macros, define them in a file named "swl_variant_knobs.hpp", and put it either in the same directory as `variant.hpp` or at the root of a header search path. 
+	- `SWL_VARIANT_NO_STD_HASH` : this disable the `std::hash` specializations and `#include \<functional\>`
+	- `SWL_VARIANT_NO_CONSTEXPR_EMPLACE` : this disable `constexpr` for emplace, and `#include \<memory\>`, which is even bigger. Note that this one is an ODR footgun : don't use it if you can't guarantee that it's enabled everywhere in your binaries. \
+	To use these macros, define them in a file named `swl_variant_knobs.hpp`, and put it either in the same directory as `variant.hpp` or at the root of a header search path. \
 	Both of these are provided to reduce compile times, whether or not this matter depends on your compiler : on my version of Clang, activating both of these macros result in a mere -0.5s, on GCC however, this reduce compile times by more than 4s. 
 
 ## Measurements 
@@ -61,5 +61,7 @@ Multi visitation of some variants of size 10 :
 | 4 | 6.7s, 630 Ko  | 68s, 11 Mo     | 10.5s, 560 Ko  | 95s, 17 Mo    |
 
 ### Tested compilers
+
 * GCC 10
 
+Note : Because Clang 12 support of C++20 is only partial, for now `swl::variant` can't be instantiated with types whose destructors aren't trivial on Clang 12. 
