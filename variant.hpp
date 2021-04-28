@@ -393,37 +393,36 @@ class variant : private vimpl::variant_tag {
 		
 		DebugAssert( not (valueless_by_exception() && o.valueless_by_exception()) );
 		
-		if (index() == o.index()){
-			vimpl::visit_with_index(o, [this] (auto& elem, auto index_) {
+		vimpl::visit_with_index( o, [&o, this] (auto&& elem, auto index_) {
+		
+			if (this->index() == index_){
 				using std::swap;
-				swap(this->unsafe_get<index_>(), elem);
-			});
-		}
-		else {
-			vimpl::visit_with_index( o, [&o, this] (auto&& elem, auto index_) {
-				using idx_t = decltype(index_);
-				vimpl::visit_with_index(*this, [this, &o, &elem] (auto&& this_elem, auto this_index) {
+				swap( this->unsafe_get<index_>(), elem );
+				return;
+			}
+			
+			using idx_t = decltype(index_);
+			vimpl::visit_with_index(*this, [this, &o, &elem] (auto&& this_elem, auto this_index) {
+			
+				auto tmp { MOV(this_elem) };
 				
-					auto tmp { MOV(this_elem) };
+				// destruct the element
+				vimpl::destruct<alternative<this_index>>(this_elem);
+				
+				if constexpr (not std::is_nothrow_move_constructible_v<alternative<idx_t::value>> )
+					this->current = npos;
 					
-					// destruct the element
-					vimpl::destruct<alternative<this_index>>(this_elem);
-					
-					if constexpr (not std::is_nothrow_move_constructible_v<alternative<idx_t::value>> )
-						this->current = npos;
-						
-					// ok, we just destroyed the element in this, don't call the dtor again
-					this->emplace_no_dtor<idx_t::value>( MOV(elem) );
-					
-					// we could refactor this
-					vimpl::destruct<alternative<idx_t::value>>(elem);
-					if constexpr (not std::is_nothrow_move_constructible_v<alternative<this_index>> )
-						o.current = npos;
-					o.template emplace_no_dtor< (unsigned)(this_index) >( MOV(tmp) );
-					
-				});
-			});	
-		}
+				// ok, we just destroyed the element in this, don't call the dtor again
+				this->emplace_no_dtor<idx_t::value>( MOV(elem) );
+				
+				// we could refactor this
+				vimpl::destruct<alternative<idx_t::value>>(elem);
+				if constexpr (not std::is_nothrow_move_constructible_v<alternative<this_index>> )
+					o.current = npos;
+				o.template emplace_no_dtor< (unsigned)(this_index) >( MOV(tmp) );
+				
+			});
+		});	
 	}
 	
 	// +================================== methods for internal use
