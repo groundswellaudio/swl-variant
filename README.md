@@ -33,8 +33,6 @@ Some test files succeed by not compiling, so you will see some errors. \
 
 * `index()` doesn't return a `std::size_t`, but an integer whose size depends on the numbers of type inside the variant. Basically either `unsigned char` or `unsigned short`. 
 
-* Clang implementation (but not GCC) forbids any kind of conversion to bool, not swl::variant
-
 ## Extensions and customization 
 
 * If you like to live dangerously, `swl::unsafe_get` behave just like get, but without any errors checking. 
