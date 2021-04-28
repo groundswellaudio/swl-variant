@@ -4,7 +4,7 @@ A minimal compile-time overhead, C++20 implementation of std::variant. Fully sta
 
 ## Compile-time performance
 
-Because `std::variant` is implemented in both GCC and Clang libraries using a simple recursive union, accessing each members result in approximately N^2 functions template instantiations for a variant of size N. This implementation instead use a "binary-tree of unions", resulting in N.log2(N) instantiations, which results in drastically faster compile times (see measurements below). 
+Because `std::variant` is implemented in both GCC and Clang libraries using a simple recursive union, accessing each members result in approximately N^2 functions template instantiations for a variant of size N. This implementation instead use a "binary-tree of unions", resulting in N.log2(N) instantiations, which results in faster compile times (see measurements below). 
 
 ## Run-time performance and binary size
 
