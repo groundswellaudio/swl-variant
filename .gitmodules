@@ -1,3 +1,0 @@
-[submodule "test/ext"]
-	path = test/ext
-	url = https://github.com/gulrak/filesystem.git

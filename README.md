@@ -12,22 +12,12 @@ Because `std::variant` is implemented in both GCC and Clang libraries using a si
 
 ## Testing
 
-The tests come from the LLVM test suite, and are compiled/run by `./tests/all_tests.cpp`.
-
-Compile `all_tests.cpp` as follow : \
-`clang++ -std=c++17 ./test/all_tests.cpp`
-(or compile it as any .cpp) 
-
-To run the tests, pass the following arguments to the resulting binary : 
-* a string containing a prefix of the command necessary to compile a C++20 file with your compiler of choice... 
-* with the root directory and the ./test directory in the include paths... 
-* *and* specifying the output path for compilation of individual tests at the end of the command
-
-For example : 
-`./a.out g++ -std=c++20 -I . -I .. -o ./tmp_test`
-
-Some test files succeed by not compiling, so you will see some errors. \
-(this is a bit spartan, it would be nice to have a cleaner way of running all the tests). 
+The tests are from the LLVM test suite.
+To run them do : 
+`mkdir ./test_out && ./test_out`
+`cmake ../`
+`ctest --build-and-test ../ ./ --build-generator "Unix Makefiles"` (replace "Unix Makefiles" as needed)
+`make test`
 
 ## Implementation divergence
 
