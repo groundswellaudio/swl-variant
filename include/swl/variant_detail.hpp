@@ -121,9 +121,6 @@ using union_index_t = unsigned;
 	SFM(constexpr X& operator=(const X&), copy_assignable) \
 	SFM(constexpr X& operator=(X&&), move_assignable) \
 	SFM(constexpr ~X(), destructible)
-	
-template <bool IsTerminal, class... Ts>
-union variant_union;
 
 template <bool IsLeaf>
 struct node_trait;
