@@ -14,7 +14,7 @@ Because `std::variant` is implemented in both GCC and Clang libraries using a si
 
 The tests are from the LLVM test suite.
 To run them do : 
-`mkdir ./test_out && ./test_out`
+`mkdir ./test_out && cd ./test_out`
 `cmake ../`
 `ctest --build-and-test ../ ./ --build-generator "Unix Makefiles"` (replace "Unix Makefiles" as needed)
 `make test`

@@ -103,7 +103,7 @@ constexpr void destruct(T& obj){
 // =================== base variant storage type 
 // this type is used to build a N-ary tree of union. 
 
-struct dummy_type{}; // used to fill the back of union nodes
+struct dummy_type{ static constexpr int elem_size = 0; }; // used to fill the back of union nodes
 
 using union_index_t = unsigned;
 
@@ -115,7 +115,7 @@ using union_index_t = unsigned;
 
 // given the two members of type A and B of an union X
 // this create the proper conditionally trivial special members functions
-#define INJECT_UNION_SFM_FRAG(X) \
+#define INJECT_UNION_SFM(X) \
 	SFM(constexpr X (const X &), copy_constructible) \
 	SFM(constexpr X (X&&), move_constructible) \
 	SFM(constexpr X& operator=(const X&), copy_assignable) \
@@ -125,89 +125,92 @@ using union_index_t = unsigned;
 template <bool IsTerminal, class... Ts>
 union variant_union;
 
-template <class A, class B>
-union variant_union<false, A, B> {
+template <bool IsLeaf>
+struct node_trait;
+
+template <>
+struct node_trait<true> {
+
+	template <class A, class B>
+	static constexpr auto elem_size = not( std::is_same_v<B, dummy_type> ) ? 2 : 1;
 	
+	template <std::size_t, class>
+	static constexpr char ctor_branch = 0;
+};
+
+template <>
+struct node_trait<false> {
+	template <class A, class B>
 	static constexpr auto elem_size = A::elem_size + B::elem_size;
 	
-	constexpr variant_union() = default;
+	template <std::size_t Index, class A>
+	static constexpr char ctor_branch = (Index < A::elem_size) ? 1 : 2;
+};
+
+template <bool IsLeaf, class A, class B>
+struct union_node {
+
+	union {
+		A a; 
+		B b;
+	};
+	
+	static constexpr auto elem_size = node_trait<IsLeaf>::template elem_size<A, B>;
+	
+	constexpr union_node() = default;
 	
 	template <std::size_t Index, class... Args>
-		requires (Index < A::elem_size)
-	constexpr variant_union(in_place_index_t<Index>, Args&&... args)
-	: a{ in_place_index<Index>, static_cast<Args&&>(args)... } {}
+		requires (node_trait<IsLeaf>::template ctor_branch<Index, A> == 1)
+	constexpr union_node(in_place_index_t<Index>, Args&&... args)
+	: a{ in_place_index<Index>, static_cast<Args&&>(args)... } 
+	{}
 	
 	template <std::size_t Index, class... Args>
-		requires (Index >= A::elem_size)
-	constexpr variant_union(in_place_index_t<Index>, Args&&... args)
-	: b{ in_place_index<Index - A::elem_size>, static_cast<Args&&>(args)... } {} 
+		requires (node_trait<IsLeaf>::template ctor_branch<Index, A> == 2)
+	constexpr union_node(in_place_index_t<Index>, Args&&... args)
+	: b{ in_place_index<Index - A::elem_size>, static_cast<Args&&>(args)... } 
+	{}
+	
+	template <class... Args>
+		requires (IsLeaf)
+	constexpr union_node(in_place_index_t<0>, Args&&... args)
+	: a{static_cast<Args&&>(args)...} 
+	{}
+	
+	template <class... Args>
+		requires (IsLeaf)
+	constexpr union_node(in_place_index_t<1>, Args&&... args)
+	: b{static_cast<Args&&>(args)...} 
+	{}
+	
+	constexpr union_node(dummy_type)
+		requires (std::is_same_v<dummy_type, B>)
+	: b{}
+	{}
 	
 	template <union_index_t Index>
-	constexpr auto& get(){
-		if constexpr 		( Index < A::elem_size )
-			return a.template get<Index>();
+	constexpr auto& get()
+	{
+		if constexpr (IsLeaf)
+		{
+			if constexpr ( Index == 0 )
+				return a;
+			else 
+				return b;
+		}
 		else 
-			return b.template get<Index - A::elem_size>();
+		{
+			if constexpr ( Index < A::elem_size )
+				return a.template get<Index>();
+			else 
+				return b.template get<Index - A::elem_size>();	
+		}
 	}
 	
-	INJECT_UNION_SFM_FRAG(variant_union)
-	
-	A a;
-	B b;
+	INJECT_UNION_SFM(union_node)
 };
 
-template <class A, class B>
-union variant_union<true, A, B> {
-	
-	static constexpr union_index_t elem_size = not( std::is_same_v<B, dummy_type> ) ? 2 : 1;
-	
-	constexpr variant_union() = default;
-	
-	template <class... Args>
-	constexpr variant_union(in_place_index_t<0>, Args&&... args)
-	: a{static_cast<Args&&>(args)...} {}
-	
-	template <class... Args>
-	constexpr variant_union(in_place_index_t<1>, Args&&... args)
-	: b{static_cast<Args&&>(args)...} {}
-	
-	template <union_index_t Index>
-	constexpr auto& get(){
-		if constexpr 		( Index == 0 )
-			return a;
-		else return b;
-	}
-	
-	INJECT_UNION_SFM_FRAG(variant_union)
-		
-	A a;
-	B b;
-};
-
-struct valueless_construct_t{};
-
-template <class Impl>
-union variant_top_union;
-
-template <class A>
-union variant_top_union {
-	
-	constexpr variant_top_union() = default;
-	constexpr variant_top_union(valueless_construct_t) : dummy{} {}
-	
-	template <std::size_t Idx, class... Args>
-	constexpr variant_top_union(in_place_index_t<Idx> tag, Args&&... args) 
-	: impl{tag, static_cast<Args&&>(args)...} {}
-	
-	using B = dummy_type;
-	
-	INJECT_UNION_SFM_FRAG(variant_top_union)
-	
-	A impl;
-	dummy_type dummy;
-};
-
-#undef INJECT_UNION_SFM_FRAG
+#undef INJECT_UNION_SFM
 #undef SFM
 #undef TRAIT
 
@@ -225,13 +228,18 @@ struct make_tree;
 template <bool IsFirstPass>
 struct make_tree<2, 1, IsFirstPass> {
 	template <unsigned Remaining, class A, class B, class... Ts>
-	using f = typename make_tree<pick_next(Remaining - 2), 
-								 sizeof...(Ts) != 0,
-								 IsFirstPass
-								 >::template f< Remaining - 2, 
-								 				Ts..., 
-								 				variant_union<IsFirstPass, A, B>
-								 			  >; 
+	using f = typename make_tree
+	<
+	 pick_next(Remaining - 2), 
+	 sizeof...(Ts) != 0,
+	 IsFirstPass
+	>
+	::template f
+	<
+	 Remaining - 2, 
+	 Ts..., 
+	 union_node<IsFirstPass, A, B>
+	>; 
 };
 
 // only one type left, stop
@@ -245,17 +253,21 @@ struct make_tree<0, 0, F> {
 template <bool IsFirstPass>
 struct make_tree<0, 1, IsFirstPass> {
 	template <unsigned Remaining, class... Ts>
-	using f = typename make_tree<pick_next(sizeof...(Ts)), 
-								 (sizeof...(Ts) != 1), 
-								 false  // <- both first pass and tail call recurse into a tail call
-								>::template f<sizeof...(Ts), Ts...>;
+	using f = typename make_tree
+	<
+	 pick_next(sizeof...(Ts)), 
+	 (sizeof...(Ts) != 1), 
+	 false  // <- both first pass and tail call recurse into a tail call
+	>
+	::template f<sizeof...(Ts), Ts...>;
 };
 
 // one odd type left in the pass, put it at the back to preserve the order
 template <>
 struct make_tree<1, 1, false> {
 	template <unsigned Remaining, class A, class... Ts>
-	using f = typename make_tree<0, sizeof...(Ts) != 0, false>::template f<0, Ts..., A>;
+	using f = typename make_tree<0, sizeof...(Ts) != 0, false>
+		::template f<0, Ts..., A>;
 };
 
 // one odd type left in the first pass, wrap it in an union
@@ -263,9 +275,7 @@ template <>
 struct make_tree<1, 1, true> {
 	template <unsigned, class A, class... Ts>
 	using f = typename make_tree<0, sizeof...(Ts) != 0, false>
-		::template f<0, Ts..., 
-					 variant_union<true, A, dummy_type>
-					>;
+		::template f<0, Ts..., union_node<true, A, dummy_type>>;
 };
 
 template <class... Ts>

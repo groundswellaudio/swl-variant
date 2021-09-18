@@ -62,7 +62,7 @@ SOFTWARE.
 
 namespace swl {
 
-class bad_variant_access : final std::exception {
+class bad_variant_access  final : std::exception {
 	const char* message = ""; // llvm test requires a well formed what() on default init
 	public : 
 	bad_variant_access(const char* str) noexcept : message{str} {}
@@ -125,7 +125,7 @@ class variant<Ts...> {
 template <class... Ts>
 class variant : private vimpl::variant_tag {
 	
-	using storage_t = vimpl::variant_top_union<vimpl::make_tree_union<Ts...>>;
+	using storage_t = vimpl::union_node<false, vimpl::make_tree_union<Ts...>, vimpl::dummy_type>;
 	 
 	static constexpr bool is_trivial           = std::is_trivial_v<storage_t>;
 	static constexpr bool has_copy_ctor        = std::is_copy_constructible_v<storage_t>;
@@ -141,7 +141,7 @@ class variant : private vimpl::variant_tag {
 	public : 
 	
 	template <std::size_t Idx>
-	using alternative = std::remove_reference_t< decltype( std::declval<storage_t&>().impl.template get<Idx>() ) >;
+	using alternative = std::remove_reference_t< decltype( std::declval<storage_t&>().template get<Idx>() ) >;
 	
 	static constexpr bool can_be_valueless = not is_trivial;
 	
@@ -172,7 +172,7 @@ class variant : private vimpl::variant_tag {
 	// copy constructor
 	constexpr variant(const variant& o)
 		requires (has_copy_ctor and not trivial_copy_ctor)
-	: storage{ vimpl::valueless_construct_t{} } {
+	: storage{ vimpl::dummy_type{} } {
 		construct_from(o);
 	}
 	
@@ -185,7 +185,7 @@ class variant : private vimpl::variant_tag {
 	constexpr variant(variant&& o)
 		noexcept ((std::is_nothrow_move_constructible_v<Ts> && ...))
 		requires (has_move_ctor and not trivial_move_ctor)
-	: storage{ vimpl::valueless_construct_t{} } {
+	: storage{ vimpl::dummy_type{} } {
 		construct_from(static_cast<variant&&>(o));
 	}
 	
@@ -199,7 +199,7 @@ class variant : private vimpl::variant_tag {
 	
 	// construct at index
 	template <std::size_t Index, class... Args>
-		requires (Index < sizeof...(Ts) && std::is_constructible_v<alternative<Index>, Args&&...>)
+		requires (Index < size && std::is_constructible_v<alternative<Index>, Args&&...>)
 	explicit constexpr variant(in_place_index_t<Index> tag, Args&&... args)
 	: storage{tag, static_cast<Args&&>(args)...}, current(Index) 
 	{}
@@ -214,8 +214,8 @@ class variant : private vimpl::variant_tag {
 	// initializer-list constructors
 	template <std::size_t Index, class U, class... Args>
 		requires ( 
+			(Index < size) and 
 			std::is_constructible_v< alternative<Index>, std::initializer_list<U>&, Args&&... >
-			&& (Index < size) 
 		)
 	explicit constexpr variant (in_place_index_t<Index> tag, std::initializer_list<U> list, Args&&... args)
 	: storage{ tag, list, SWL_FWD(args)... }, current{Index}
@@ -249,9 +249,9 @@ class variant : private vimpl::variant_tag {
 	constexpr variant& operator=(const variant& rhs)
 		requires (has_copy_assign and not(trivial_copy_assign && trivial_copy_ctor))
 	{
-		this->assign_from(rhs, [this] (const auto& elem, auto index_cst) {
-			if (this->index() == index_cst)
-				this->unsafe_get<index_cst>() = elem;
+		assign_from(rhs, [this] (const auto& elem, auto index_cst) {
+			if (index() == index_cst)
+				unsafe_get<index_cst>() = elem;
 			else{
 				using type = alternative<index_cst>;
 				if constexpr (std::is_nothrow_copy_constructible_v<type> 
@@ -278,7 +278,7 @@ class variant : private vimpl::variant_tag {
 	{
 		this->assign_from( SWL_FWD(o), [this] (auto&& elem, auto index_cst) 
 		{
-			if (this->index() == index_cst)
+			if (index() == index_cst)
 				this->unsafe_get<index_cst>() = SWL_MOV(elem);
 			else 
 				this->emplace<index_cst>( SWL_MOV(elem) );
@@ -320,13 +320,13 @@ class variant : private vimpl::variant_tag {
 	template <class T, class... Args>
 		requires (std::is_constructible_v<T, Args&&...> && vimpl::appears_exactly_once<T, Ts...>)
 	constexpr T& emplace(Args&&... args){
-		return this->emplace<index_of<T>>(static_cast<Args&&>(args)...);
+		return emplace<index_of<T>>(static_cast<Args&&>(args)...);
 	}
 	
 	template <std::size_t Idx, class... Args>
 		requires (Idx < size and std::is_constructible_v<alternative<Idx>, Args&&...>  )
 	constexpr auto& emplace(Args&&... args){
-		return this->emplace_impl<Idx>(SWL_FWD(args)...);
+		return emplace_impl<Idx>(SWL_FWD(args)...);
 	}
 	
 	// emplace with initializer-lists
@@ -334,14 +334,14 @@ class variant : private vimpl::variant_tag {
 		requires ( Idx < size 
 			&& std::is_constructible_v<alternative<Idx>, std::initializer_list<U>&, Args&&...> )
 	constexpr auto& emplace(std::initializer_list<U> list, Args&&... args){
-		return this->emplace_impl<Idx>(list, SWL_FWD(args)...);
+		return emplace_impl<Idx>(list, SWL_FWD(args)...);
 	}
 	
 	template <class T, class U, class... Args>
 		requires ( std::is_constructible_v<T, std::initializer_list<U>&, Args&&...>
 				   && vimpl::appears_exactly_once<T, Ts...> )
 	constexpr T& emplace(std::initializer_list<U> list, Args&&... args){
-		return this->emplace_impl<index_of<T>>( list, SWL_FWD(args)... );
+		return emplace_impl<index_of<T>>( list, SWL_FWD(args)... );
 	}
 	
 	// ==================================== value status (20.7.3.6)
@@ -432,14 +432,14 @@ class variant : private vimpl::variant_tag {
 	constexpr auto& unsafe_get() & noexcept	{
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
-		return storage.impl.template get<Idx>(); 
+		return storage.template get<Idx>(); 
 	}
 	
 	template <vimpl::union_index_t Idx>
 	constexpr auto&& unsafe_get() && noexcept { 
 		static_assert(Idx < size);
 		DebugAssert(current == Idx);
-		return SWL_MOV( storage.impl.template get<Idx>() ); 
+		return SWL_MOV( storage.template get<Idx>() ); 
 	}
 	
 	template <vimpl::union_index_t Idx>
@@ -491,7 +491,7 @@ class variant : private vimpl::variant_tag {
 	template <unsigned Idx, class... Args>
 	constexpr void emplace_no_dtor(Args&&... args){
 		
-		auto* ptr = vimpl::addressof( storage.impl.template get<Idx>() );
+		auto* ptr = vimpl::addressof( unsafe_get<Idx>() );
 		
 		#ifdef SWL_VARIANT_NO_CONSTEXPR_EMPLACE
 			using T = alternative<Idx>;
@@ -553,7 +553,7 @@ constexpr bool holds_alternative(const variant<Ts...>& v) noexcept {
 template <std::size_t Idx, class... Ts>
 constexpr auto& get (variant<Ts...>& v){
 	static_assert( Idx < sizeof...(Ts), "Index exceeds the variant size. ");
-	if (v.index() != Idx) throw bad_variant_access{"swl::variant : Bad variant access."};
+	if (v.index() != Idx) throw bad_variant_access{"swl::variant : Bad variant access in get."};
 	return (v.template unsafe_get<Idx>());
 }
 
