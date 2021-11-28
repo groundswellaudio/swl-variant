@@ -65,4 +65,4 @@ Multi visitation of some variants of size 10 :
 
 * GCC 10
 
-Note : Clang 12 will not work (as in : it works only for trivially destructible types). 
+Clang 12/13 will only work for trivially destructible types as their implementation of C++20 is incomplete. 

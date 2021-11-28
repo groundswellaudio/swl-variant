@@ -409,16 +409,11 @@ class variant : private vimpl::variant_tag {
 				// destruct the element
 				vimpl::destruct<alternative<this_index>>(this_elem);
 				
-				if constexpr (not std::is_nothrow_move_constructible_v<alternative<idx_t::value>> )
-					this->current = npos;
-					
 				// ok, we just destroyed the element in this, don't call the dtor again
 				this->emplace_no_dtor<idx_t::value>( SWL_MOV(elem) );
 				
 				// we could refactor this
 				vimpl::destruct<alternative<idx_t::value>>(elem);
-				if constexpr (not std::is_nothrow_move_constructible_v<alternative<this_index>> )
-					o.current = npos;
 				o.template emplace_no_dtor< (unsigned)(this_index) >( SWL_MOV(tmp) );
 				
 			});
@@ -475,22 +470,43 @@ class variant : private vimpl::variant_tag {
 	}
 	
 	template <unsigned Idx, class... Args>
-	constexpr auto& emplace_impl(Args&&... args){
-		using T = alternative<Idx>;
-		
-		this->reset();
-		
-		if constexpr (not std::is_nothrow_constructible_v<T, Args&&...>)
-			current = npos;
-		
-		this->emplace_no_dtor<Idx>( SWL_FWD(args)...);
-		return this->unsafe_get<Idx>();
+	constexpr auto& emplace_impl(Args&&... args)
+	{
+		reset();
+		emplace_no_dtor<Idx>( SWL_FWD(args)... );
+		return unsafe_get<Idx>();
 	}
 	
 	// can be used directly only when the variant is in a known empty state
 	template <unsigned Idx, class... Args>
-	constexpr void emplace_no_dtor(Args&&... args){
+	constexpr void emplace_no_dtor(Args&&... args)
+	{
+		using T = alternative<Idx>;
 		
+		if constexpr ( not std::is_nothrow_constructible_v<T, Args&&...> )
+		{
+			if constexpr ( std::is_nothrow_move_constructible_v<T> )
+				do_emplace_no_dtor<Idx>( T{SWL_FWD(args)...} );
+			else if constexpr ( std::is_nothrow_copy_constructible_v<T> )
+			{
+				T tmp {SWL_FWD(args)...};
+				do_emplace_no_dtor<Idx>( tmp );
+			}
+			else 
+			{
+				static_assert( can_be_valueless && (Idx == Idx), 
+					"Internal error : the possibly valueless branch of emplace was taken despite |can_be_valueless| being false");
+				current = npos;
+				do_emplace_no_dtor<Idx>( SWL_FWD(args)... );
+			}
+		}
+		else 
+			do_emplace_no_dtor<Idx>( SWL_FWD(args)... );
+	}
+	
+	template <unsigned Idx, class... Args>
+	constexpr void do_emplace_no_dtor(Args&&... args)
+	{
 		auto* ptr = vimpl::addressof( unsafe_get<Idx>() );
 		
 		#ifdef SWL_VARIANT_NO_CONSTEXPR_EMPLACE
@@ -499,7 +515,7 @@ class variant : private vimpl::variant_tag {
 		#else
 			std::construct_at( ptr, SWL_FWD(args)... );
 		#endif
-		
+	
 		current = static_cast<index_type>(Idx);
 	}
 	

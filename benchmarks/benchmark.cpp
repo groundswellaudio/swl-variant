@@ -5,7 +5,7 @@
 	#include <variant>
 	#define swl std
 #else
-	#include "../variant.hpp"
+	#include <swl/variant.hpp>
 #endif
 
 #define PACK int, float, char, bool, double
