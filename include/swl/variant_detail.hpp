@@ -13,6 +13,13 @@ inline constexpr bool appears_exactly_once = (static_cast<unsigned short>(std::i
 
 // ============= type pack element 
 
+#if __has_builtin(__type_pack_element)
+
+template <std::size_t K, class... Ts>
+using type_pack_element = __type_pack_element<K, Ts...>;
+
+#else
+
 template <unsigned char = 1>
 struct find_type_i;
 
@@ -30,6 +37,8 @@ struct find_type_i<0> {
 
 template <std::size_t K, class... Ts>
 using type_pack_element = typename find_type_i<(K != 0)>::template f<K, Ts...>;
+
+#endif
 
 // ============= overload match detector. to be used for variant generic assignment
 
