@@ -49,6 +49,10 @@ SOFTWARE.
 	#include <functional>
 #endif
 
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
 #define SWL_FWD(x) static_cast<decltype(x)&&>(x)
 #define SWL_MOV(x) static_cast< std::remove_reference_t<decltype(x)>&& >(x)
 
