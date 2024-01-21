@@ -331,5 +331,15 @@ inline constexpr T* addressof( T& obj ) noexcept {
 	#endif
 }
 
+template <class E>
+constexpr void do_throw(auto&&... args) {
+	#ifdef SWL_NO_EXCEPTIONS
+	DebugAssert(false);
+	std::abort();
+	#else
+	throw E{SWL_FWD(args)...};
+	#endif
+}
+
 #endif // eof
 					  
