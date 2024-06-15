@@ -66,7 +66,7 @@ SOFTWARE.
 
 namespace swl {
 
-class bad_variant_access  final : std::exception {
+class bad_variant_access  final : public std::exception {
 	const char* message = ""; // llvm test requires a well formed what() on default init
 	public : 
 	bad_variant_access(const char* str) noexcept : message{str} {}
