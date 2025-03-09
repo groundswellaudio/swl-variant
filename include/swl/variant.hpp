@@ -376,7 +376,7 @@ class variant : private vimpl::variant_tag {
 			// if one is valueless, move the element form the non-empty variant,
 			// reset it, and set it to valueless
 			constexpr auto impl_one_valueless = [] (auto&& full, auto& empty) {
-				swl::visit_with_index( SWL_FWD(full), vimpl::emplace_no_dtor_from_elem<variant&>{empty} );
+				swl::visit_with_index( vimpl::emplace_no_dtor_from_elem<variant&>{empty}, SWL_FWD(full) );
 				full.reset_no_check();
 				full.current = npos;
 			};
@@ -401,7 +401,7 @@ class variant : private vimpl::variant_tag {
 		
 		DebugAssert( not (valueless_by_exception() && o.valueless_by_exception()) );
 		
-		swl::visit_with_index( o, [&o, this] (auto&& elem, auto index_) {
+		swl::visit_with_index( [&o, this] (auto&& elem, auto index_) {
 		
 			if (this->index() == index_){
 				using std::swap;
@@ -410,7 +410,7 @@ class variant : private vimpl::variant_tag {
 			}
 			
 			using idx_t = decltype(index_);
-			swl::visit_with_index(*this, [this, &o, &elem] (auto&& this_elem, auto this_index) {
+			swl::visit_with_index([this, &o, &elem] (auto&& this_elem, auto this_index) {
 			
 				auto tmp { SWL_MOV(this_elem) };
 				
@@ -424,8 +424,8 @@ class variant : private vimpl::variant_tag {
 				vimpl::destruct<alternative<idx_t::value>>(elem);
 				o.template emplace_no_dtor< (unsigned)(this_index) >( SWL_MOV(tmp) );
 				
-			});
-		});	
+			}, *this);
+		}, o);	
 	}
 	
 	// +================================== methods for internal use
@@ -474,7 +474,7 @@ class variant : private vimpl::variant_tag {
 			}
 		}
 		DebugAssert(not o.valueless_by_exception());
-		swl::visit_with_index( SWL_FWD(o), SWL_FWD(fn) );
+		swl::visit_with_index( SWL_FWD(fn), SWL_FWD(o) );
 	}
 	
 	template <unsigned Idx, class... Args>
@@ -538,9 +538,9 @@ class variant : private vimpl::variant_tag {
 	constexpr void reset_no_check(){
 		DebugAssert( index() < size );
 		if constexpr ( not trivial_dtor ){
-			swl::visit_with_index( *this, [] (auto& elem, auto index_) {
+			swl::visit_with_index( [] (auto& elem, auto index_) {
 				vimpl::destruct<alternative<index_>>(elem);
-			});
+			}, *this);
 		}
 	}
 	
@@ -553,7 +553,7 @@ class variant : private vimpl::variant_tag {
 				return;
 			}
 		
-		swl::visit_with_index( SWL_FWD(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
+		swl::visit_with_index( vimpl::emplace_no_dtor_from_elem<variant&>{*this}, SWL_FWD(o) );
 	}
 	
 	template <class T>
@@ -691,9 +691,9 @@ constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		return false;
 	if constexpr (variant<Ts...>::can_be_valueless)
 		if (v1.valueless_by_exception()) return true;
-	return swl::visit_with_index( v2, [&v1] (auto& elem, auto index) -> bool {
+	return swl::visit_with_index( [&v1] (auto& elem, auto index) -> bool {
 		return (v1.template unsafe_get<index>() == elem);
-	});
+	}, v2);
 }
 
 template <class... Ts>
@@ -711,9 +711,9 @@ constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		if (v1.valueless_by_exception()) return true;
 	}
 	if ( v1.index() == v2.index() ){
-		return swl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
+		return swl::visit_with_index( [&v2] (auto& elem, auto index) -> bool {
 			return (elem < v2.template unsafe_get<index>());
-		} );
+		}, v1);
 	}
 	else
 		return (v1.index() < v2.index());
@@ -734,9 +734,9 @@ constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		if (v2.valueless_by_exception()) return false;
 	}
 	if ( v1.index() == v2.index() ){
-		return swl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
+		return swl::visit_with_index( [&v2] (auto& elem, auto index) -> bool {
 			return (elem <= v2.template unsafe_get<index>());
-		});
+		}, v1);
 	}
 	else
 		return (v1.index() < v2.index());
@@ -832,10 +832,10 @@ constexpr auto&& unsafe_get(Var&& var) noexcept {
 				if constexpr ( swl::variant<Ts...>::can_be_valueless )
 					if (v.valueless_by_exception()) return -1;
 		
-				return swl::visit_with_index( v, [] (auto& elem, auto index_) {
+				return swl::visit_with_index( [] (auto& elem, auto index_) {
 					using type = std::remove_cvref_t<decltype(elem)>;
 					return std::hash<type>{}(elem) + index_;
-				});
+				}, v);
 			}
 		};
 
