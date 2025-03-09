@@ -104,7 +104,11 @@ namespace vimpl {
 }
 
 template <class T>
-inline constexpr bool is_variant = std::is_base_of_v<vimpl::variant_tag, std::decay_t<T>>;
+inline constexpr bool is_variant_like = std::is_base_of_v<vimpl::variant_tag, std::decay_t<T>>;
+
+template <class Fn, class V>
+  requires (is_variant_like<V>)
+constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v);
 
 inline static constexpr vimpl::variant_npos_t variant_npos;
 
@@ -372,7 +376,7 @@ class variant : private vimpl::variant_tag {
 			// if one is valueless, move the element form the non-empty variant,
 			// reset it, and set it to valueless
 			constexpr auto impl_one_valueless = [] (auto&& full, auto& empty) {
-				vimpl::visit_with_index( SWL_FWD(full), vimpl::emplace_no_dtor_from_elem<variant&>{empty} );
+				swl::visit_with_index( SWL_FWD(full), vimpl::emplace_no_dtor_from_elem<variant&>{empty} );
 				full.reset_no_check();
 				full.current = npos;
 			};
@@ -397,7 +401,7 @@ class variant : private vimpl::variant_tag {
 		
 		DebugAssert( not (valueless_by_exception() && o.valueless_by_exception()) );
 		
-		vimpl::visit_with_index( o, [&o, this] (auto&& elem, auto index_) {
+		swl::visit_with_index( o, [&o, this] (auto&& elem, auto index_) {
 		
 			if (this->index() == index_){
 				using std::swap;
@@ -406,7 +410,7 @@ class variant : private vimpl::variant_tag {
 			}
 			
 			using idx_t = decltype(index_);
-			vimpl::visit_with_index(*this, [this, &o, &elem] (auto&& this_elem, auto this_index) {
+			swl::visit_with_index(*this, [this, &o, &elem] (auto&& this_elem, auto this_index) {
 			
 				auto tmp { SWL_MOV(this_elem) };
 				
@@ -470,7 +474,7 @@ class variant : private vimpl::variant_tag {
 			}
 		}
 		DebugAssert(not o.valueless_by_exception());
-		vimpl::visit_with_index( SWL_FWD(o), SWL_FWD(fn) );
+		swl::visit_with_index( SWL_FWD(o), SWL_FWD(fn) );
 	}
 	
 	template <unsigned Idx, class... Args>
@@ -534,7 +538,7 @@ class variant : private vimpl::variant_tag {
 	constexpr void reset_no_check(){
 		DebugAssert( index() < size );
 		if constexpr ( not trivial_dtor ){
-			vimpl::visit_with_index( *this, [] (auto& elem, auto index_) {
+			swl::visit_with_index( *this, [] (auto& elem, auto index_) {
 				vimpl::destruct<alternative<index_>>(elem);
 			});
 		}
@@ -549,7 +553,7 @@ class variant : private vimpl::variant_tag {
 				return;
 			}
 		
-		vimpl::visit_with_index( SWL_FWD(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
+		swl::visit_with_index( SWL_FWD(o), vimpl::emplace_no_dtor_from_elem<variant&>{*this} );
 	}
 	
 	template <class T>
@@ -663,13 +667,19 @@ constexpr decltype(auto) visit(Fn&& fn, Vs&&... vs){
 
 template <class Fn>
 constexpr decltype(auto) visit(Fn&& fn){
-	return SWL_FWD(fn)();
+  return SWL_FWD(fn)();
 }
 
 template <class R, class Fn, class... Vs>
-	requires (is_variant<Vs> && ...)
+	requires (is_variant_like<Vs> && ...)
 constexpr R visit(Fn&& fn, Vs&&... vars){
-	return static_cast<R>( swl::visit( SWL_FWD(fn), SWL_FWD(vars)...) );
+  return static_cast<R>( swl::visit( SWL_FWD(fn), SWL_FWD(vars)...) );
+}
+
+template <class Fn, class V>
+  requires (is_variant_like<V>)
+constexpr decltype(auto) visit_with_index(Fn&& fn, V&& v) {
+  return vimpl::single_visit_w_index_tail<0, vimpl::rtype_index_visit<Fn&&, V&&>>(SWL_FWD(fn), SWL_FWD(v));
 }
 
 // ============================== relational operators (20.7.6)
@@ -681,7 +691,7 @@ constexpr bool operator==(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		return false;
 	if constexpr (variant<Ts...>::can_be_valueless)
 		if (v1.valueless_by_exception()) return true;
-	return vimpl::visit_with_index( v2, [&v1] (auto& elem, auto index) -> bool {
+	return swl::visit_with_index( v2, [&v1] (auto& elem, auto index) -> bool {
 		return (v1.template unsafe_get<index>() == elem);
 	});
 }
@@ -701,7 +711,7 @@ constexpr bool operator<(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		if (v1.valueless_by_exception()) return true;
 	}
 	if ( v1.index() == v2.index() ){
-		return vimpl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
+		return swl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
 			return (elem < v2.template unsafe_get<index>());
 		} );
 	}
@@ -724,7 +734,7 @@ constexpr bool operator<=(const variant<Ts...>& v1, const variant<Ts...>& v2){
 		if (v2.valueless_by_exception()) return false;
 	}
 	if ( v1.index() == v2.index() ){
-		return vimpl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
+		return swl::visit_with_index( v1, [&v2] (auto& elem, auto index) -> bool {
 			return (elem <= v2.template unsafe_get<index>());
 		});
 	}
@@ -761,12 +771,12 @@ constexpr void swap(variant<Ts...>& a, variant<Ts...>& b)
 // ===================================== helper classes (20.7.4)
 
 template <class T>
-	requires is_variant<T>
+	requires is_variant_like<T>
 inline constexpr std::size_t variant_size_v = std::decay_t<T>::size;
 
 // not sure why anyone would need this, i'm adding it anyway
 template <class T>
-	requires is_variant<T>
+	requires is_variant_like<T>
 struct variant_size : std::integral_constant<std::size_t, variant_size_v<T>> {};
 
 namespace vimpl {
@@ -789,7 +799,7 @@ template <std::size_t Idx, class T>
 using variant_alternative_t = typename vimpl::var_alt_impl< std::is_volatile_v<T> >::template type<Idx, T>;
 
 template <std::size_t Idx, class T>
-	requires is_variant<T>
+	requires is_variant_like<T>
 struct variant_alternative {
 	using type = variant_alternative_t<Idx, T>;
 };
@@ -797,14 +807,14 @@ struct variant_alternative {
 // ===================================== extensions (unsafe_get)
 
 template <std::size_t Idx, class Var>
-	requires is_variant<Var>
+	requires is_variant_like<Var>
 constexpr auto&& unsafe_get(Var&& var) noexcept {
 	static_assert( Idx < std::decay_t<Var>::size, "Index exceeds the variant size." );
 	return SWL_FWD(var).template unsafe_get<Idx>();
 }
 
 template <class T, class Var>
-	requires is_variant<Var>
+	requires is_variant_like<Var>
 constexpr auto&& unsafe_get(Var&& var) noexcept {
 	return swl::unsafe_get< std::decay_t<Var>::template index_of<T> >( SWL_FWD(var) );
 }
@@ -822,7 +832,7 @@ constexpr auto&& unsafe_get(Var&& var) noexcept {
 				if constexpr ( swl::variant<Ts...>::can_be_valueless )
 					if (v.valueless_by_exception()) return -1;
 		
-				return swl::vimpl::visit_with_index( v, [] (auto& elem, auto index_) {
+				return swl::visit_with_index( v, [] (auto& elem, auto index_) {
 					using type = std::remove_cvref_t<decltype(elem)>;
 					return std::hash<type>{}(elem) + index_;
 				});

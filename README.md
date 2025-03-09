@@ -22,6 +22,11 @@ To run them do :
 ## Implementation divergence
 
 * `index()` doesn't return a `std::size_t`, but an integer whose size depends on the numbers of type inside the variant. Basically either `unsigned char` or `unsigned short`. 
+* a `visit_with_index` function is furnished, which is useful for example when you want 
+  to apply a function to multiple variant whose index is known to be the same : 
+  ```cpp
+  visit_with_index(variant1, [&variant2] (auto& elem, auto cst) { foo(elem, get<cst>(variant2)); });
+  ```
 
 ## Extensions and customization 
 

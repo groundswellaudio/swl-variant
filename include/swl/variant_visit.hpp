@@ -93,13 +93,6 @@ constexpr decltype(auto) visit(Fn&& fn, V&& v){
 	return vimpl::single_visit_tail<0, rtype_visit<Fn&&, V&&>>(SWL_FWD(fn), SWL_FWD(v));
 }
 
-// unlike other visit functions, this takes the variant first! 
-// this is confusing, but make the client code easier to read
-template <class Fn, class V>
-constexpr decltype(auto) visit_with_index(V&& v, Fn&& fn){
-	return vimpl::single_visit_w_index_tail<0, rtype_index_visit<Fn&&, V&&>>(SWL_FWD(fn), SWL_FWD(v));
-}
-
 template <class Fn, class Head, class... Tail>
 constexpr decltype(auto) multi_visit(Fn&& fn, Head&& head, Tail&&... tail){
 	
